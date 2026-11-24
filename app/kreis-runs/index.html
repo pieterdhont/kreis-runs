@@ -149,7 +149,7 @@ footer{font-size:13px;color:var(--muted);padding-top:0}
 
   <section class="notes">
     <div><b>The runner</b><p>One sculpted body on a 19-bone skeleton, moved by physics across a full range of speeds. From about 0.8 m/s he walks: both feet touch the ground together for a moment and his body rises over each step. Around 1.6 m/s he blends into a jog and then a run. Above 3.2 m/s he moves into a sprint, reaching a full sprint at 10 m/s: up to about 5.4 steps a second, ground contact under a tenth of a second, landings on the ball of the foot with the heel never touching, high heel recovery, big knee drive and a wide, powerful arm swing. Each gait's step rate and ground-contact time come from measured human data scaled to his size. Planted feet never slide: each foot lands on the heel, rolls flat and pushes off from the toes, landing more on the forefoot and pushing off harder the faster he goes. He leans into acceleration and back when braking, each landing sends a small jolt up his body, and his pelvis turns and dips against his shoulders with every stride. His torso follows his limbs: the pelvis turns with his thighs and the chest with his arms, in true opposition. He sways over the loaded leg, his spine flexes on each landing and extends through the push-off, his shoulders move forward and back with each arm, and his breathing deepens with effort while his head stays steady.</p></div>
-    <div><b>His look</b><p>A Japanese-meets-Bauhaus hero, cel-shaded with ink outlines. He has a flame-coloured crest of hair and a wrap top with a family crest. A black obi with streaming tails and red-lined sleeves with ribbons complete the outfit, along with pleated hakama and a cape split into two tails. He blinks, and his eyes narrow, brows set and mouth opens as he runs faster.</p></div>
+    <div><b>His look</b><p>A Japanese-meets-Bauhaus hero, cel-shaded with ink outlines. He has a flame-coloured crest of hair and a wrap top with a family crest. A black obi with streaming tails and red-lined sleeves with ribbons complete the outfit, along with pleated hakama and a cape split into two tails. He blinks, and his eyes narrow, brows set and mouth opens as he runs faster. The cape, obi tails and sleeve ribbons are simulated cloth: pinned to his body, pulled by gravity and pushed by the air streaming past at his running speed. They drape at a walk, ripple in his wake at a run and flap out straight at a full sprint, and they bump against his back, sun disc, arms and legs instead of passing through.</p></div>
     <div><b>The camera</b><p>Every angle can circle a full 360° around Kreis: turn on 360° circle, or drag the scene to orbit and tilt by hand. Zoom with the scroll wheel, a pinch, the slider or <kbd>+</kbd> <kbd>−</kbd>. Director cuts between seven shots, each with its own zoom move. Hold the move pad to slide the camera left, right, up, down, forward or back, along each axis separately. Reset view returns to the starting position.</p></div>
     <div><b>Shortcuts</b><p><kbd>Space</kbd> pause, <kbd>1</kbd>–<kbd>6</kbd> cameras, <kbd>C</kbd> 360° circle, arrow keys orbit and tilt, <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> move the camera forward, left, back and right, <kbd>Q</kbd> <kbd>E</kbd> down and up, <kbd>N</kbd> day or dusk, <kbd>Z</kbd> dolly zoom, <kbd>0</kbd> reset zoom.</p></div>
   </section>
@@ -357,19 +357,13 @@ const onTorsoN=(x,y,back=false)=>{_o.set(x,y,back?-0.5:0.5);_d.set(0,0,back?1:-1
   return h?{p:h.point.clone(),n:h.face.normal.clone()}:{p:new THREE.Vector3(x,y,back?-0.09:0.09),n:new THREE.Vector3(0,0,back?-1:1)}};
 const onTorso=(x,y,off=0.003,back=false)=>{const r=onTorsoN(x,y,back);return r.p.addScaledVector(r.n,off)};
 
+let DISC_Z=-0.1;
 /* hips (root bone) and obi details */
 const hips=new THREE.Bone();hips.position.set(0,0.74,0);body.add(hips);
 part(gradY(lathe([[0.0005,-0.075],[0.07,-0.07],[0.104,-0.045],[0.112,-0.005],[0.104,0.04],[0.092,0.075],[0.0005,0.08]],64,0.78,40),0x1d4a9e,0x2f63c6,-0.075,0.06),0,hips,0,0,0,{mat:VC()});
 part(lathe([[0.112,0.0],[0.117,0.006],[0.114,0.03],[0.107,0.052],[0.101,0.058]],64,0.78,20),C.black,hips,0,0.026,0);
 {const r=new THREE.TorusGeometry(0.1152,0.0036,10,72);r.rotateX(Math.PI/2);r.scale(1,1,0.78);part(r,C.red,hips,0,0.052,0,{ink:false});}
 part(blob(0.034,0.026,0.02),C.black,hips,0,0.054,-0.094);
-/* obi tails: two ribbons that stream from the knot */
-const tails=[];
-for(const sx of[1,-1]){const g=new THREE.PlaneGeometry(1,1,2,16),p=g.attributes.position,b=[];
-  for(let i=0;i<p.count;i++){const s=0.5-p.getY(i),u=p.getX(i);const x=u*0.042*(1-0.25*s),y=-s*0.3;p.setXYZ(i,x,y,0);b.push(x,y,s,u);}
-  const m=new THREE.Mesh(g,T(C.black,{side:THREE.DoubleSide}));m.castShadow=true;m.position.set(sx*0.02,0.046,-0.104);m.rotation.z=sx*0.12;hips.add(m);
-  const tip=new THREE.Mesh(new THREE.CircleGeometry(0.011,20),T(C.red,{side:THREE.DoubleSide}));m.add(tip);
-  tails.push({m,g,b,sx,tip});}
 
 /* torso: one continuous skinned body (built after the limb helpers), bent by waist, chest and neck bones */
 const waistB=new THREE.Bone();waistB.position.set(0,0.075,0);hips.add(waistB);
@@ -473,17 +467,11 @@ for(const[x,z,len]of[[-0.05,0.03,0.36],[0.05,0.03,0.36],[-0.02,-0.01,0.4],[0.02,
 
 /* sun disc on the back */
 {const d=lathe([[0.0005,0.009],[0.133,0.009],[0.146,0.004],[0.148,0.0],[0.146,-0.004],[0.133,-0.009],[0.0005,-0.009]],72,1,16);d.rotateX(Math.PI/2);
- const BZ=onTorso(0,0.24,0,true).z;
+ const BZ=onTorso(0,0.24,0,true).z;DISC_Z=BZ-0.011;
  part(d,C.yellow,torso,0,0.24,BZ-0.011);
  part(new THREE.TorusGeometry(0.118,0.0045,10,72),C.black,torso,0,0.24,BZ-0.021,{ink:false});
  part(new THREE.CylinderGeometry(0.044,0.044,0.004,48).rotateX(Math.PI/2),C.blue,torso,0,0.24,BZ-0.022,{ink:false});}
 
-/* cape */
-const cg=new THREE.PlaneGeometry(1,1,12,24),cp=cg.attributes.position,cbase=[];
-for(let i=0;i<cp.count;i++){const s=0.5-cp.getY(i),u=cp.getX(i)*2,w=0.29*Math.pow(s,0.7)*(1+0.14*s);
-  const x=u*w,y=-s*0.76+0.2*Math.pow(s,3)*Math.pow(1-Math.abs(u),1.4);cp.setXYZ(i,x,y,0);cbase.push(x,y,s,u);}
-gradY(cg,0x9e1218,0xe8342a,-0.62,0.0);
-const cloak=new THREE.Mesh(cg,VC({side:THREE.DoubleSide}));cloak.castShadow=true;cloak.position.set(0,0.312,onTorso(0,0.3,0,true).z-0.028);torso.add(cloak);
 
 /* ---------- skeleton and the sculpted body: one continuous skinned surface ---------- */
 const INKS=new THREE.ShaderMaterial({uniforms:{t:{value:0.0032}},side:THREE.BackSide,
@@ -507,11 +495,7 @@ for(const sx of[1,-1]){const S_=sx>0?'L':'R';
   const sh=new THREE.Bone(),el=new THREE.Bone(),wr=new THREE.Bone();spread.add(sh);sh.add(el);el.add(wr);el.position.y=-ARM.el;wr.position.y=-(ARM.wr-ARM.el);
   const sl=grp(sh,0,0,0);
   {const r=new THREE.TorusGeometry(0.0502,0.0046,10,56);r.rotateX(Math.PI/2);part(r,C.black,sl,0,-0.147,0);}
-  /* sleeve streamer: a red ribbon trailing from the cuff */
-  const sg=new THREE.PlaneGeometry(1,1,1,10),sp=sg.attributes.position,sb=[];
-  for(let i=0;i<sp.count;i++){const s=0.5-sp.getY(i),u=sp.getX(i);const x=u*0.03*(1-0.6*s),y=-s*0.16;sp.setXYZ(i,x,y,0);sb.push(x,y,s);}
-  const streamer=new THREE.Mesh(sg,T(C.red,{side:THREE.DoubleSide}));streamer.castShadow=true;streamer.position.set(0,-0.15,-0.046);sl.add(streamer);
-  arms.push({sh,el,wr,sl,streamer,sg,sb});
+  arms.push({sh,el,wr,sl});
   const th=new THREE.Bone(),kn=new THREE.Bone(),an=new THREE.Bone(),toeJ=new THREE.Bone();
   th.position.set(sx*HIPX,-0.03,0);hips.add(th);th.add(kn);kn.add(an);an.add(toeJ);kn.position.y=-LEG.kn;an.position.y=-(LEG.an-LEG.kn);toeJ.position.set(0,-0.024,0.07);
   {const r=new THREE.TorusGeometry(0.0672,0.0046,10,64);r.rotateX(Math.PI/2);part(r,C.black,kn,0,-0.302,0);}
@@ -524,6 +508,133 @@ for(const sx of[1,-1]){const S_=sx>0?'L':'R';
  const bm=new THREE.SkinnedMesh(bodyGeo,VC());bm.position.copy(hips.position);bm.castShadow=true;bm.receiveShadow=true;bm.frustumCulled=false;body.add(bm);
  body.updateMatrixWorld(true);bm.bind(sk);
  const ol=new THREE.SkinnedMesh(bodyGeo,INKS);ol.position.copy(hips.position);ol.frustumCulled=false;body.add(ol);body.updateMatrixWorld(true);ol.bind(sk);}
+
+/* ---------- cloth: Verlet particles, distance constraints, gravity, aerodynamic drag, body collisions ----------
+   The cape, the obi tails and the sleeve ribbons are simulated in world space. Air moves past Kreis at his running
+   speed (plus gusts and turbulence in his wake) and pushes on every triangle of fabric. */
+const CLOTH=[],CLOTH_H=1/300;
+function makeCloth(o){
+  const {NC,NR,restFn,pinParent,mass,colorFn,split}=o,N=NC*NR;
+  const c={NC,NR,N,pinParent,p:new Float32Array(N*3),q:new Float32Array(N*3),f:new Float32Array(N*3),rest:[],pins:[],con:[],tri:[],
+    mp:mass/N,iters:o.iters||6,damp:o.damp||0.996,ka:o.ka||0.72,kt:o.kt||0.06,init:false,pinPrev:[],pinCur:[]};
+  for(let r=0;r<NR;r++)for(let k=0;k<NC;k++){const v=restFn(k/(NC-1)*2-1,r/(NR-1));c.rest.push(v);if(r===0)c.pins.push(r*NC+k);}
+  const id=(r,k)=>r*NC+k,cut=(r,k1,k2)=>split&&r>=split.row&&((k1<=split.col&&k2>split.col)||(k2<=split.col&&k1>split.col));
+  const addC=(a,b,k)=>{const L=c.rest[a].distanceTo(c.rest[b]);c.con.push([a,b,L,k]);};
+  for(let r=0;r<NR;r++)for(let k=0;k<NC;k++){
+    if(k+1<NC&&!cut(r,k,k+1))addC(id(r,k),id(r,k+1),1);
+    if(r+1<NR)addC(id(r,k),id(r+1,k),1);
+    if(r+1<NR&&k+1<NC&&!cut(r,k,k+1)&&!cut(r+1,k,k+1)){addC(id(r,k),id(r+1,k+1),0.85);addC(id(r,k+1),id(r+1,k),0.85);
+      c.tri.push(id(r,k),id(r+1,k),id(r,k+1),id(r,k+1),id(r+1,k),id(r+1,k+1));}
+    if(k+2<NC&&!cut(r,k,k+2))addC(id(r,k),id(r,k+2),o.bend??0.25);
+    if(r+2<NR)addC(id(r,k),id(r+2,k),o.bend??0.25);
+  }
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(c.p,3));g.setIndex(c.tri);
+  const col=new Float32Array(N*3),Q=new THREE.Color();
+  for(let r=0;r<NR;r++)for(let k=0;k<NC;k++){colorFn(k/(NC-1)*2-1,r/(NR-1),Q);col.set([Q.r,Q.g,Q.b],id(r,k)*3);}
+  g.setAttribute('color',new THREE.BufferAttribute(col,3));
+  const m=new THREE.Mesh(g,VC({side:THREE.DoubleSide}));m.castShadow=true;m.receiveShadow=true;m.frustumCulled=false;scene.add(m);
+  c.g=g;c.m=m;CLOTH.push(c);return c;
+}
+const _cv=new THREE.Vector3();
+function clothPinTargets(c,out){for(let i=0;i<c.pins.length;i++){const v=out[i]||(out[i]=new THREE.Vector3());v.copy(c.rest[c.pins[i]]);c.pinParent.localToWorld(v);}return out;}
+function clothInit(c){
+  c.pinParent.updateMatrixWorld(true);
+  for(let i=0;i<c.N;i++){_cv.copy(c.rest[i]);c.pinParent.localToWorld(_cv);c.p.set([_cv.x,_cv.y,_cv.z],i*3);c.q.set([_cv.x,_cv.y,_cv.z],i*3);}
+  clothPinTargets(c,c.pinCur);clothPinTargets(c,c.pinPrev);c.init=true;
+}
+/* colliders, refreshed every frame from the skeleton */
+const COL={sph:[],cap:[],disc:null};
+function clothStep(c,h,frac,air,t){
+  const P=c.p,Qp=c.q,F=c.f,N=c.N;F.fill(0);
+  const tri=c.tri,ih=1/h;
+  /* aerodynamic force on each triangle: pressure drag along its normal plus a little skin friction */
+  for(let k=0;k<tri.length;k+=3){
+    const a=tri[k]*3,b=tri[k+1]*3,d=tri[k+2]*3;
+    const e1x=P[b]-P[a],e1y=P[b+1]-P[a+1],e1z=P[b+2]-P[a+2],e2x=P[d]-P[a],e2y=P[d+1]-P[a+1],e2z=P[d+2]-P[a+2];
+    let nx=e1y*e2z-e1z*e2y,ny=e1z*e2x-e1x*e2z,nz=e1x*e2y-e1y*e2x;const len=Math.hypot(nx,ny,nz);if(len<1e-12)continue;
+    const area=len*0.5;nx/=len;ny/=len;nz/=len;
+    const cx=(P[a]+P[b]+P[d])/3,cy=(P[a+1]+P[b+1]+P[d+1])/3,cz=(P[a+2]+P[b+2]+P[d+2])/3;
+    const vx=((P[a]-Qp[a])+(P[b]-Qp[b])+(P[d]-Qp[d]))*ih/3,vy=((P[a+1]-Qp[a+1])+(P[b+1]-Qp[b+1])+(P[d+1]-Qp[d+1]))*ih/3,vz=((P[a+2]-Qp[a+2])+(P[b+2]-Qp[b+2])+(P[d+2]-Qp[d+2]))*ih/3;
+    /* the body shelters the air right behind it, and sheds turbulent eddies there */
+    const behind=-cx,shel=0.72+0.28*smo(0.04,0.45,behind),tur=air.tur*(1.6-shel);
+    const wx=air.x*shel+tur*(Math.sin(t*air.f1+cy*9+cz*7)+0.5*Math.sin(t*air.f2+cz*13)),
+          wy=air.y+tur*0.8*Math.sin(t*air.f1*1.3+cx*8+cz*11),
+          wz=air.z+tur*Math.sin(t*air.f2*0.9+cy*10+cx*6);
+    const rx=wx-vx,ry=wy-vy,rz=wz-vz,rv=Math.hypot(rx,ry,rz),vn=rx*nx+ry*ny+rz*nz;
+    const fn=c.ka*area*rv*vn,ft=c.kt*area*rv;
+    const fx=(fn*nx+ft*rx)/3,fy=(fn*ny+ft*ry)/3,fz=(fn*nz+ft*rz)/3;
+    F[a]+=fx;F[a+1]+=fy;F[a+2]+=fz;F[b]+=fx;F[b+1]+=fy;F[b+2]+=fz;F[d]+=fx;F[d+1]+=fy;F[d+2]+=fz;
+  }
+  /* Verlet integration */
+  const h2=h*h,im=1/c.mp,dmp=c.damp;
+  for(let i=0;i<N;i++){const i3=i*3;
+    const x=P[i3],y=P[i3+1],z=P[i3+2];
+    let ux=(x-Qp[i3])*dmp+F[i3]*im*h2,uy=(y-Qp[i3+1])*dmp+(F[i3+1]*im-GRAV)*h2,uz=(z-Qp[i3+2])*dmp+F[i3+2]*im*h2;
+    const um=Math.hypot(ux,uy,uz),lim=28*h;if(um>lim){const k_=lim/um;ux*=k_;uy*=k_;uz*=k_;}
+    P[i3]=x+ux;P[i3+1]=y+uy;P[i3+2]=z+uz;
+    Qp[i3]=x;Qp[i3+1]=y;Qp[i3+2]=z;}
+  /* pins follow the body (interpolated across the frame) */
+  const pin=()=>{for(let j=0;j<c.pins.length;j++){const i3=c.pins[j]*3,A_=c.pinPrev[j],B_=c.pinCur[j];
+    P[i3]=A_.x+(B_.x-A_.x)*frac;P[i3+1]=A_.y+(B_.y-A_.y)*frac;P[i3+2]=A_.z+(B_.z-A_.z)*frac;}};
+  pin();
+  const isPin=c.isPin||(c.isPin=(()=>{const s=new Uint8Array(N);c.pins.forEach(i=>s[i]=1);return s})());
+  for(let it=0;it<c.iters;it++){
+    for(const[a0,b0,L,k]of c.con){const a=a0*3,b=b0*3,wa=isPin[a0]?0:1,wb=isPin[b0]?0:1,ws=wa+wb;if(!ws)continue;
+      const dx=P[b]-P[a],dy=P[b+1]-P[a+1],dz=P[b+2]-P[a+2],d=Math.hypot(dx,dy,dz)||1e-9,s=(d-L)/d*k/ws;
+      P[a]+=dx*s*wa;P[a+1]+=dy*s*wa;P[a+2]+=dz*s*wa;P[b]-=dx*s*wb;P[b+1]-=dy*s*wb;P[b+2]-=dz*s*wb;}
+    /* collisions: body spheres, limb capsules, the sun disc, the path */
+    for(let i=0;i<N;i++){if(isPin[i])continue;const i3=i*3;let x=P[i3],y=P[i3+1],z=P[i3+2];
+      for(const sp of COL.sph){const dx=x-sp.c.x,dy=y-sp.c.y,dz=z-sp.c.z,d2=dx*dx+dy*dy+dz*dz;if(d2<sp.r*sp.r){const d=Math.sqrt(d2)||1e-6,s=sp.r/d;x=sp.c.x+dx*s;y=sp.c.y+dy*s;z=sp.c.z+dz*s;}}
+      for(const cp_ of COL.cap){const ax=cp_.a.x,ay=cp_.a.y,az=cp_.a.z,bx=cp_.b.x-ax,by=cp_.b.y-ay,bz=cp_.b.z-az,bb=bx*bx+by*by+bz*bz||1e-9;
+        let u=((x-ax)*bx+(y-ay)*by+(z-az)*bz)/bb;u=u<0?0:u>1?1:u;const qx=ax+bx*u,qy=ay+by*u,qz=az+bz*u,dx=x-qx,dy=y-qy,dz=z-qz,d2=dx*dx+dy*dy+dz*dz;
+        if(d2<cp_.r*cp_.r){const d=Math.sqrt(d2)||1e-6,s=cp_.r/d;x=qx+dx*s;y=qy+dy*s;z=qz+dz*s;}}
+      const D=COL.disc;if(D){const rx=x-D.c.x,ry=y-D.c.y,rz=z-D.c.z,dn=rx*D.n.x+ry*D.n.y+rz*D.n.z;
+        if(dn<0.014&&dn>-0.13){const px=rx-dn*D.n.x,py=ry-dn*D.n.y,pz=rz-dn*D.n.z;if(px*px+py*py+pz*pz<D.r*D.r){const s=0.014-dn;x+=D.n.x*s;y+=D.n.y*s;z+=D.n.z*s;}}}
+      if(y<GY+0.006)y=GY+0.006;
+      const cx_=x-P[i3],cy_=y-P[i3+1],cz_=z-P[i3+2];if(cx_||cy_||cz_){Qp[i3]+=cx_*0.85;Qp[i3+1]+=cy_*0.85;Qp[i3+2]+=cz_*0.85;}
+      P[i3]=x;P[i3+1]=y;P[i3+2]=z;}
+    pin();
+  }
+}
+/* the cape: attached across the back of the shoulders behind the sun disc, widening to a split hem */
+const capeTopZ=[];for(let k=0;k<14;k++)capeTopZ.push(onTorso((k/13*2-1)*0.1,0.305,0,true).z);
+const cape=makeCloth({NC:14,NR:26,mass:0.2,iters:8,bend:0.3,ka:1.0,kt:0.08,pinParent:torso,split:{row:14,col:6},
+  restFn:(u,s)=>{const x=u*(0.1+0.19*Math.pow(s,0.8)),bz=(capeTopZ[Math.round((u+1)*6.5)]??onTorso(u*0.1,0.305,0,true).z);
+    return new THREE.Vector3(x,0.31-s*0.76+0.2*Math.pow(s,3)*Math.pow(1-Math.abs(u),1.4),bz-0.036-0.03*s);},
+  colorFn:(u,s,Q)=>Q.set(0xe8342a).lerp(new THREE.Color(0x9e1218),smo(0.1,1,s))});
+/* obi tails: two narrow black ribbons from the knot, red at the tips */
+for(const sx of[1,-1])makeCloth({NC:3,NR:18,mass:0.025,iters:6,bend:0.3,pinParent:hips,ka:0.8,
+  restFn:(u,s)=>new THREE.Vector3(sx*0.02+u*0.021*(1-0.25*s)+sx*0.03*s,0.046-s*0.3,-0.104-0.012*s),
+  colorFn:(u,s,Q)=>Q.set(s>0.86?C.red:C.black)});
+/* sleeve ribbons: short red streamers from each cuff */
+for(const A of arms)makeCloth({NC:2,NR:11,mass:0.01,iters:5,bend:0.2,pinParent:A.sl,ka:0.8,
+  restFn:(u,s)=>new THREE.Vector3(u*0.015*(1-0.6*s),-0.15-s*0.16,-0.046-0.004*s),
+  colorFn:(u,s,Q)=>Q.set(C.red)});
+/* refresh colliders from the skeleton */
+const _a=new THREE.Vector3(),_b=new THREE.Vector3();
+function updateColliders(){
+  const S_=(obj,x,y,z,r,i)=>{const s=COL.sph[i]||(COL.sph[i]={c:new THREE.Vector3(),r});s.r=r;s.c.set(x,y,z);obj.localToWorld(s.c);};
+  S_(torso,0,0.27,-0.012,0.112,0);S_(torso,0,0.2,-0.006,0.112,1);S_(torso,0,0.13,0,0.098,2);S_(hips,0,0.0,0,0.118,3);S_(hips,0,0.06,0,0.115,4);
+  let ci=0;const Cp=(o1,o2,r,off2)=>{const c=COL.cap[ci]||(COL.cap[ci]={a:new THREE.Vector3(),b:new THREE.Vector3(),r});c.r=r;o1.getWorldPosition(c.a);
+    if(o2)o2.getWorldPosition(c.b);else{c.b.set(0,-off2,0);o1.localToWorld(c.b);}ci++;};
+  for(const L_ of legs){Cp(L_.th,L_.kn,0.078);Cp(L_.kn,L_.an,0.07);}
+  for(const A of arms){Cp(A.sh,A.el,0.056);Cp(A.el,A.wr,0.036);}
+  const D=COL.disc||(COL.disc={c:new THREE.Vector3(),n:new THREE.Vector3(),r:0.155});
+  D.c.set(0,0.24,DISC_Z);torso.localToWorld(D.c);D.n.set(0,0,-1).transformDirection(torso.matrixWorld);
+}
+/* advance all cloth by the frame's simulated time */
+let clothAcc=0;
+function updateCloth(dt,v,t){
+  updateColliders();
+  for(const c of CLOTH){if(!c.init)clothInit(c);const tmp_=c.pinPrev;c.pinPrev=c.pinCur;c.pinCur=clothPinTargets(c,tmp_);}
+  if(dt<=0){for(const c of CLOTH){c.g.attributes.position.needsUpdate=true;}return;}
+  /* relative air: Kreis runs along +x, so air streams past at -v; a light shifting breeze; turbulence grows with speed */
+  const air={x:-v+0.5*Math.sin(t*0.37)+0.3*Math.sin(t*1.1),y:0.15*Math.sin(t*0.71),z:0.45*Math.sin(t*0.23+1)+0.2*Math.sin(t*1.7),
+    tur:0.35+0.16*v,f1:5+2.1*v,f2:7.3+2.9*v};
+  clothAcc+=Math.min(dt,0.05);const n=Math.min(12,Math.floor(clothAcc/CLOTH_H));clothAcc-=n*CLOTH_H;
+  for(let s=0;s<n;s++){const frac=(s+1)/n;for(const c of CLOTH)clothStep(c,CLOTH_H,frac,air,t+s*CLOTH_H);}
+  for(const c of CLOTH){c.g.attributes.position.needsUpdate=true;c.g.computeVertexNormals();}
+}
 
 /* ---------- dust puffs at foot strikes ---------- */
 const puffs=[];for(let i=0;i<14;i++){const m=new THREE.Mesh(G.sph,new THREE.MeshStandardMaterial({color:0xe9dfc9,roughness:1,transparent:true,opacity:0,depthWrite:false}));m.visible=false;world.add(m);puffs.push({m,life:0});}
@@ -759,31 +870,8 @@ function pose(p,sp,dt){
     lag.el[i]=spring(lag.el[i],-lerp(elW,lerp(elR,elS,SPR),R)*DEG,lerp(8,lerp(13,24,SPR),R),dt);A.el.rotation.x=lag.el[i];
     A.wr.rotation.x=lerp(0.06,0.16,R)*Math.sin((f-0.15)*Math.PI*2);A.wr.rotation.z=side*0.08;
     lag.sl[i]=spring(lag.sl[i],lag.sh[i],6,dt);A.sl.rotation.x=(lag.sl[i]-lag.sh[i])*0.9;
-    const sgp=A.sg.attributes.position;
-    for(let k=0;k<sgp.count;k++){const x=A.sb[k*3],y=A.sb[k*3+1],s=A.sb[k*3+2];
-      const a=(0.3+0.9*spN+0.5*SPR)*(0.3+0.7*s)+(A.sh.rotation.x)*0.6+0.08*(1+SPR)*Math.sin(S.t*(9+6*SPR)+s*4+i);
-      sgp.setXYZ(k,x+Math.sin(S.t*7-s*5+i)*0.01*s,y*Math.cos(a),y*Math.sin(a));}
-    sgp.needsUpdate=true;A.sg.computeVertexNormals();
   }
   chestB.scale.set(1+0.004*R*Math.sin(p*2+0.6),1,1+lerp(0.008,lerp(0.014,0.026,SPR),R)*Math.sin(p*2+0.6));
-  /* cape: blown back with speed, edges cupping, travelling ripples, split tails flicking */
-  const a0=0.2+0.6*spN+0.55*SPR;
-  for(let i=0;i<cp.count;i++){
-    const x=cbase[i*4],y=cbase[i*4+1],s=cbase[i*4+2],u=cbase[i*4+3];
-    const a=a0*(0.3+0.7*s)+0.05*Math.sin(S.t*6.5+s*3)+0.08*s*s*Math.sin(S.t*9+u*3);
-    const wave=Math.sin(S.t*10-s*6.5+u*2.2)*0.032*s*(0.4+0.6*spN)+Math.sin(S.t*6.1-s*4+u*4.5)*0.012*s;
-    cp.setXYZ(i,x*(1+0.1*s)+Math.sin(S.t*4.2-s*3)*0.012*s,y*Math.cos(a),y*Math.sin(a)+wave-u*u*0.045*s-0.008*s);
-  }
-  cp.needsUpdate=true;cg.computeVertexNormals();
-  for(const tl of tails){const tp=tl.g.attributes.position;
-    for(let i=0;i<tp.count;i++){const x=tl.b[i*4],y=tl.b[i*4+1],s=tl.b[i*4+2];
-      const a=(0.25+0.65*spN+0.5*SPR)*(0.3+0.7*s)+0.06*(1+SPR)*Math.sin(S.t*(7+5*SPR)+s*3+tl.sx);
-      const w=Math.sin(S.t*12-s*7+tl.sx*1.3)*0.03*s*(0.4+0.6*spN);
-      tp.setXYZ(i,x+Math.sin(S.t*5-s*4+tl.sx)*0.012*s,y*Math.cos(a),y*Math.sin(a)+w);}
-    tp.needsUpdate=true;tl.g.computeVertexNormals();
-    const ae=(0.25+0.65*spN+0.5*SPR)+0.06*(1+SPR)*Math.sin(S.t*(7+5*SPR)+3+tl.sx);
-    tl.tip.position.set(Math.sin(S.t*5-4+tl.sx)*0.012,-0.3*Math.cos(ae),-0.3*Math.sin(ae)+0.002);}
-  cloak.rotation.y=0.28*Math.sin(S.t*3.1)*(0.5+0.5*spN);cloak.rotation.z=0.08*Math.sin(S.t*2.1);
   for(const l of locks){l.g.rotation.x=l.base-0.06*spN+Math.sin(S.t*l.f*0.5+l.ph)*0.02;
     const g=l.m.geometry,P=g.attributes.position.array,B=g.userData.base,TT=g.userData.tt,wind=0.16*spN+0.26*SPR,A=0.12*l.amp*(0.35+0.85*spN)*(1+0.8*SPR),Y=0.09*l.amp*(0.4+spN)*(1+0.6*SPR);
     for(let k=0;k<TT.length;k++){const t=TT[k],t2=t*t;
@@ -919,6 +1007,7 @@ renderer.setAnimationLoop(()=>{
   for(const ch of chunks){if(ch.position.x+world.position.x+L<-70){build(ch,ch.userData.idx+N);}}
   for(const p of puffs){if(p.life>0){p.life-=dt*1.5;const t=1-p.life;p.m.scale.setScalar(0.04+t*0.2);p.m.position.y=0.04+t*0.12;p.m.material.opacity=Math.max(0,p.life)*0.55;if(p.life<=0)p.m.visible=false;}}
   pose(S.phase,sp,dt);
+  kreis.updateMatrixWorld(true);updateCloth(dt,v,S.t);
   rig(dt,real);
   S.todK+=(S.tod-S.todK)*(1-Math.exp(-real*1.8));
   applyLight(S.todK);
