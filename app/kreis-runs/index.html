@@ -279,17 +279,28 @@ const chunks=[];for(let i=0;i<N;i++){const g=new THREE.Group();build(g,i-1);worl
 /* ---------- Kreis: anime-Bauhaus, cel-shaded and articulated ---------- */
 const kreis=new THREE.Group();scene.add(kreis);
 const body=new THREE.Group();body.rotation.y=Math.PI/2;kreis.add(body);
-const gradTex=(()=>{const d=new Uint8Array([132,132,132,255,186,186,186,255,232,232,232,255,255,255,255,255]);
-  const t=new THREE.DataTexture(d,4,1);t.minFilter=t.magFilter=THREE.NearestFilter;t.needsUpdate=true;return t})();
+const gradTex=(()=>{const n=128,d=new Uint8Array(n*4),sm=(a,b,x)=>{const t=Math.min(1,Math.max(0,(x-a)/(b-a)));return t*t*(3-2*t)};
+  for(let i=0;i<n;i++){const x=i/(n-1),v=0.56+0.24*sm(0.2,0.4,x)+0.2*sm(0.58,0.8,x),b=Math.round(v*255);d.set([b,b,b,255],i*4);}
+  const t=new THREE.DataTexture(d,n,1);t.minFilter=t.magFilter=THREE.LinearFilter;t.needsUpdate=true;return t})();
+/* soft fresnel rim: a light edge that rounds every form */
+const rim=(m,amt=0.3)=>{m.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <opaque_fragment>',
+  `{float fr=pow(1.0-clamp(abs(dot(normal,normalize(vViewPosition))),0.0,1.0),2.4);outgoingLight+=diffuseColor.rgb*fr*${amt.toFixed(2)};}\n#include <opaque_fragment>`);};
+  m.customProgramCacheKey=()=>'rim'+amt;return m;};
+/* vertex-colour gradient along height, like the hair */
+const gradY=(g,c0,c1,y0,y1)=>{const p=g.attributes.position,a=new Float32Array(p.count*3),A=new THREE.Color(c0),B=new THREE.Color(c1),Q=new THREE.Color();
+  for(let i=0;i<p.count;i++){const t=Math.min(1,Math.max(0,(p.getY(i)-y0)/(y1-y0))),e=t*t*(3-2*t);Q.copy(A).lerp(B,e);a[i*3]=Q.r;a[i*3+1]=Q.g;a[i*3+2]=Q.b;}
+  g.setAttribute('color',new THREE.BufferAttribute(a,3));return g;};
 const TM={};
-const T=(c,o={})=>{const k=c+JSON.stringify(o);return TM[k]||(TM[k]=new THREE.MeshToonMaterial(Object.assign({color:c,gradientMap:gradTex},o)))};
+const T=(c,o={})=>{const k=c+JSON.stringify(o);return TM[k]||(TM[k]=rim(new THREE.MeshToonMaterial(Object.assign({color:c,gradientMap:gradTex},o))))};
+const VC=(o={})=>T(0xffffff,Object.assign({vertexColors:true},o));
 /* ink outline: back faces pushed out along normals */
 const INK=new THREE.ShaderMaterial({uniforms:{t:{value:0.0032}},side:THREE.BackSide,
   vertexShader:`uniform float t;void main(){vec3 p=position+normalize(normal)*t;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
   fragmentShader:`void main(){gl_FragColor=vec4(0.07,0.06,0.07,1.);}`});
 function part(g,c,parent,x=0,y=0,z=0,o={}){
   const m=new THREE.Mesh(g,o.mat||T(c));m.position.set(x,y,z);m.castShadow=o.cast!==false;m.receiveShadow=true;parent.add(m);
-  if(o.ink!==false){const ol=new THREE.Mesh(g,INK);m.add(ol);}return m;}
+  if(o.ink!==false){const ol=new THREE.Mesh(g,o.inkMat||INK);m.add(ol);}return m;}
+const INKH=INK.clone();INKH.uniforms={t:{value:0.0021}};
 const grp=(parent,x=0,y=0,z=0)=>{const g=new THREE.Group();g.position.set(x,y,z);parent.add(g);return g};
 const V2=(x,y)=>new THREE.Vector2(x,y);
 function lathe(pts,seg=48,sz=1,steps=40,pleat=0,np=0){
@@ -320,7 +331,7 @@ for(const sx of[1,-1]){const g=new THREE.PlaneGeometry(1,1,2,16),p=g.attributes.
 /* torso: fitted yellow wrap top */
 const torso=grp(hips,0,0.075,0);
 const TP=[[0.0005,-0.01],[0.1,-0.005],[0.102,0.04],[0.118,0.11],[0.138,0.19],[0.142,0.235],[0.13,0.275],[0.098,0.305],[0.06,0.322],[0.0005,0.33]],TSZ=0.72;
-part(lathe(TP,64,TSZ),C.yellow,torso);
+part(gradY(lathe(TP,72,TSZ),0xe2a400,0xffd94a,0.0,0.3),0,torso,0,0,0,{mat:VC()});
 const onTorso=(x,y,off=0.003)=>{const r=profR(TP,y);return new THREE.Vector3(x,y,TSZ*Math.sqrt(Math.max(0,r*r-x*x))+off)};
 /* kimono wrap line, left over right */
 {const pts=[];for(let i=0;i<=16;i++){const t=i/16,y=0.312-t*0.29,x=0.042-t*0.11+0.02*Math.sin(t*Math.PI);pts.push(onTorso(x,y,0.003));}
@@ -375,24 +386,26 @@ for(const[sx,mir]of[[0.035,false],[-0.035,true]]){const cy=0.092;
  var mouthLine=grp(head,0,0.04,0);decal(m,0,0.04,false,0.0012,M_.mouth,mouthLine);
  const o=new THREE.Shape();o.moveTo(-0.0092,0.0012);o.quadraticCurveTo(0,-0.0022,0.0092,0.0016);o.quadraticCurveTo(0.0055,-0.012,0.0,-0.0122);o.quadraticCurveTo(-0.0058,-0.0118,-0.0092,0.0012);
  var mouthOpen=grp(head,0,0.04,0);decal(o,0,0.04,false,0.0013,decalMat(0x4a1618,2),mouthOpen);
+ {const bm=new THREE.MeshBasicMaterial({color:0xf08a80,transparent:true,opacity:0.28,depthWrite:false,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3});
+  for(const sx of[0.05,-0.05])decal(ell(0.012,0.006),sx,0.068,sx<0,0.0012,bm);}
  const tg=new THREE.Shape();tg.absellipse(0.0005,-0.0085,0.0045,0.0026,0,Math.PI*2);decal(tg,0,0.04,false,0.0016,decalMat(0xc4504a,3),mouthOpen);
  const n=new THREE.Shape();n.moveTo(0.0005,0.007);n.lineTo(0.0035,-0.004);n.lineTo(-0.0012,-0.0046);decal(n,0,0.064,false,0.0012,M_.nose);}
 
 /* hair: a big flame crest of chunky, leaf-shaped locks, gold at the root to pale at the tip */
-const hairMat=new THREE.MeshToonMaterial({color:0xffffff,vertexColors:true,gradientMap:gradTex,side:THREE.DoubleSide});
+const hairMat=rim(new THREE.MeshToonMaterial({color:0xffffff,vertexColors:true,gradientMap:gradTex,side:THREE.DoubleSide}),0.38);
 const HC=[new THREE.Color(0xc4241a),new THREE.Color(0xf07a1a),new THREE.Color(0xffd84a)];
 function lockGeo(p1,p2,p3,w,th,n=30,ring=10){
-  const curve=new THREE.CubicBezierCurve3(new THREE.Vector3(0,-0.012,0.004),p1,p2,p3),pos=[],col=[],idx=[];
+  const curve=new THREE.CubicBezierCurve3(new THREE.Vector3(0,-0.012,0.004),p1,p2,p3),pos=[],col=[],idx=[],tts=[];
   const Tn=new THREE.Vector3(),Sd=new THREE.Vector3(),Nn=new THREE.Vector3(),P=new THREE.Vector3(),UP=new THREE.Vector3(0,1,0),cc=new THREE.Color();
   for(let i=0;i<=n;i++){const t=i/n;curve.getPoint(t,P);curve.getTangent(t,Tn);
     Sd.crossVectors(Tn,UP);if(Sd.lengthSq()<1e-6)Sd.set(1,0,0);Sd.normalize();Nn.crossVectors(Sd,Tn).normalize();
     const tap=t<0.32?0.55+t*1.4:Math.pow((1-t)/0.68,1.1),ww=w*tap,tt=th*tap;
     if(t<0.5)cc.copy(HC[0]).lerp(HC[1],t*2);else cc.copy(HC[1]).lerp(HC[2],(t-0.5)*2);
     for(let k=0;k<ring;k++){const a=k/ring*Math.PI*2,cx=Math.cos(a),sy=Math.sin(a),lens=Math.sign(sy)*Math.pow(Math.abs(sy),0.7)*(0.7+0.3*cx*cx);
-      pos.push(P.x+Sd.x*ww*cx+Nn.x*tt*lens,P.y+Sd.y*ww*cx+Nn.y*tt*lens,P.z+Sd.z*ww*cx+Nn.z*tt*lens);col.push(cc.r,cc.g,cc.b);}}
+      pos.push(P.x+Sd.x*ww*cx+Nn.x*tt*lens,P.y+Sd.y*ww*cx+Nn.y*tt*lens,P.z+Sd.z*ww*cx+Nn.z*tt*lens);col.push(cc.r,cc.g,cc.b);tts.push(t);}}
   for(let i=0;i<n;i++)for(let k=0;k<ring;k++){const a=i*ring+k,b=i*ring+(k+1)%ring,c=a+ring,d=b+ring;idx.push(a,c,b,b,c,d);}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
-  g.setIndex(idx);g.computeVertexNormals();return g;}
+  g.setIndex(idx);g.computeVertexNormals();g.userData.base=Float32Array.from(pos);g.userData.tt=Float32Array.from(tts);return g;}
 const hair=grp(head),locks=[];
 {const cap=new THREE.SphereGeometry(1,56,40);const cc=[];const pp=cap.attributes.position;for(let i=0;i<pp.count;i++){const y=pp.getY(i);const c=HC[0].clone().lerp(HC[1],Math.min(1,Math.max(0,(y+0.3)/1.1)));cc.push(c.r,c.g,c.b);}
  cap.setAttribute('color',new THREE.Float32BufferAttribute(cc,3));cap.scale(0.093,0.066,0.1);
@@ -411,12 +424,17 @@ HROWS.forEach(row=>row.xs.forEach(x=>{
   if(row.kind==='rise'){a=new THREE.Vector3(x*0.3,0.075,0.012);b=new THREE.Vector3(x*0.9,0.115,-len*0.42);c=new THREE.Vector3(fl,0.1+j*0.04,-len);}
   else if(row.kind==='sweep'){a=new THREE.Vector3(x*0.4,0.05,-len*0.25);b=new THREE.Vector3(x*1.1,0.06,-len*0.62);c=new THREE.Vector3(fl,0.12+j*0.05,-len);}
   else{a=new THREE.Vector3(x*0.4,0.01,-len*0.3);b=new THREE.Vector3(x*1.1,-0.02,-len*0.66);c=new THREE.Vector3(fl,0.05+j*0.04,-len);}
-  const m=part(lockGeo(a,b,c,row.w*(0.9+hr()*0.2),0.02),0,g,0,0,0,{mat:hairMat});
-  g.rotation.x=-0.1;locks.push({g,ph:hr()*6.3,f:4.5+hr()*3,base:-0.1});li++;}));
+  const m=part(lockGeo(a,b,c,row.w*(0.9+hr()*0.2),0.02),0,g,0,0,0,{mat:hairMat,inkMat:INKH});
+  g.rotation.x=-0.1;locks.push({g,m,ph:hr()*6.3,f:4.5+hr()*3,base:-0.1,amp:1});li++;}));
 for(const sx of[1,-1])for(const k of[0,1]){
   const g=grp(hair,sx*0.082,0.15+k*0.026,0.0-k*0.03);
-  part(lockGeo(new THREE.Vector3(sx*0.02,0.012,-0.07),new THREE.Vector3(sx*0.045,0.0,-0.15),new THREE.Vector3(sx*(0.06+k*0.015),0.05+k*0.03,-0.22+k*0.02),0.04,0.016),0,g,0,0,0,{mat:hairMat});
-  locks.push({g,ph:hr()*6.3,f:5.5+hr()*2,base:0});}
+  const m=part(lockGeo(new THREE.Vector3(sx*0.02,0.012,-0.07),new THREE.Vector3(sx*0.045,0.0,-0.15),new THREE.Vector3(sx*(0.06+k*0.015),0.05+k*0.03,-0.22+k*0.02),0.04,0.016),0,g,0,0,0,{mat:hairMat,inkMat:INKH});
+  locks.push({g,m,ph:hr()*6.3,f:5.5+hr()*2,base:0,amp:1});}
+/* fine wisps between the big locks: lighter and quicker in the wind */
+for(const[x,z,len]of[[-0.05,0.03,0.36],[0.05,0.03,0.36],[-0.02,-0.01,0.4],[0.02,-0.01,0.4],[-0.07,-0.05,0.3],[0.07,-0.05,0.3]]){
+  const g=grp(hair,x,scalpY(x,z)-0.004,z),j=hr();
+  const m=part(lockGeo(new THREE.Vector3(x*0.4,0.06,-len*0.25),new THREE.Vector3(x*1.2,0.07,-len*0.6),new THREE.Vector3(x*1.9,0.09+j*0.03,-len),0.026,0.009),0,g,0,0,0,{mat:hairMat,ink:false});
+  g.rotation.x=-0.08;locks.push({g,m,ph:hr()*6.3,f:6+hr()*3,base:-0.08,amp:1.6});}
 
 /* sun disc on the back */
 {const d=lathe([[0.0005,0.009],[0.133,0.009],[0.146,0.004],[0.148,0.0],[0.146,-0.004],[0.133,-0.009],[0.0005,-0.009]],72,1,16);d.rotateX(Math.PI/2);
@@ -428,7 +446,8 @@ for(const sx of[1,-1])for(const k of[0,1]){
 const cg=new THREE.PlaneGeometry(1,1,12,24),cp=cg.attributes.position,cbase=[];
 for(let i=0;i<cp.count;i++){const s=0.5-cp.getY(i),u=cp.getX(i)*2,w=0.29*Math.pow(s,0.7)*(1+0.14*s);
   const x=u*w,y=-s*0.76+0.2*Math.pow(s,3)*Math.pow(1-Math.abs(u),1.4);cp.setXYZ(i,x,y,0);cbase.push(x,y,s,u);}
-const cloak=new THREE.Mesh(cg,T(C.red,{side:THREE.DoubleSide}));cloak.castShadow=true;cloak.position.set(0,0.312,-0.132);torso.add(cloak);
+gradY(cg,0x9e1218,0xe8342a,-0.62,0.0);
+const cloak=new THREE.Mesh(cg,VC({side:THREE.DoubleSide}));cloak.castShadow=true;cloak.position.set(0,0.312,-0.132);torso.add(cloak);
 
 /* limbs: continuous skinned meshes that bend smoothly at elbows and knees */
 const INKS=new THREE.ShaderMaterial({uniforms:{t:{value:0.0032}},side:THREE.BackSide,
@@ -459,10 +478,10 @@ function skinned(g,mat,sk,parent,pos,ink=true){
   return m;}
 const tubeG=(pts,seg=40,sz=0.92,steps=70,pleat=0,np=0)=>lathe(pts.map(([r,d])=>[r,-d]),seg,sz,steps,pleat,np);
 const ARM={el:0.2,wr:0.385},LEG={kn:0.34,an:0.67,hem:0.645};
-const armG=skinAttr(tubeG([[0.0005,-0.046],[0.022,-0.036],[0.036,-0.022],[0.04,0],[0.04,0.03],[0.036,0.09],[0.031,0.16],[0.029,0.2],[0.031,0.24],[0.025,0.32],[0.019,0.375],[0.0005,0.392]]),[ARM.el,ARM.wr],[0.035,0.012]);
-const legG=skinAttr(tubeG([[0.0005,-0.012],[0.058,0],[0.06,0.05],[0.052,0.17],[0.04,0.31],[0.037,0.34],[0.042,0.4],[0.035,0.51],[0.023,0.63],[0.02,0.665],[0.0005,0.68]]),[LEG.kn,LEG.an],[0.04,0.015]);
-const hakaG=skinAttr(tubeG([[0.064,-0.03],[0.068,0.04],[0.07,0.18],[0.068,0.3],[0.066,0.36],[0.069,0.46],[0.076,0.56],[0.084,0.632],[0.0835,LEG.hem]],44,0.92,70,0.045,10),[LEG.kn,LEG.an],[0.07,0.01]);
-const sleeveG=lathe([[0.0005,0.058],[0.024,0.053],[0.038,0.04],[0.045,0.015],[0.047,-0.02],[0.05,-0.08],[0.054,-0.13],[0.057,-0.165],[0.0565,-0.172]],40,0.9,30);
+const armG=gradY(skinAttr(tubeG([[0.0005,-0.046],[0.022,-0.036],[0.036,-0.022],[0.04,0],[0.04,0.03],[0.036,0.09],[0.031,0.16],[0.029,0.2],[0.031,0.24],[0.025,0.32],[0.019,0.375],[0.0005,0.392]],48),[ARM.el,ARM.wr],[0.04,0.014]),0x173f8f,0x2c62c4,-0.39,0.0);
+const legG=gradY(skinAttr(tubeG([[0.0005,-0.012],[0.058,0],[0.06,0.05],[0.052,0.17],[0.04,0.31],[0.037,0.34],[0.042,0.4],[0.035,0.51],[0.023,0.63],[0.02,0.665],[0.0005,0.68]],48),[LEG.kn,LEG.an],[0.045,0.016]),0x173f8f,0x2a5cbd,-0.68,0.0);
+const hakaG=gradY(skinAttr(tubeG([[0.064,-0.03],[0.068,0.04],[0.07,0.18],[0.068,0.3],[0.066,0.36],[0.069,0.46],[0.076,0.56],[0.084,0.632],[0.0835,LEG.hem]],64,0.92,80,0.028,10),[LEG.kn,LEG.an],[0.08,0.01]),0x153a86,0x2f63c6,-0.645,0.03);
+const sleeveG=gradY(lathe([[0.0005,0.058],[0.024,0.053],[0.038,0.04],[0.045,0.015],[0.047,-0.02],[0.05,-0.08],[0.054,-0.13],[0.057,-0.165],[0.0565,-0.172]],56,0.9,36),0xe7a300,0xffd94a,-0.17,0.05);
 /* shoe: a heel block and a pointed toe cap that bends at the ball of the foot */
 const shoe=(sx,sy,sz,stretch)=>{const g=new THREE.SphereGeometry(1,36,18),p=g.attributes.position;
   for(let i=0;i<p.count;i++){let x=p.getX(i),y=p.getY(i),z=p.getZ(i);if(y<-0.5)y=-0.5;if(z>0&&stretch){z*=stretch;x*=1-0.42*z/stretch;}p.setXYZ(i,x*sx,y*sy,z*sz);}
@@ -474,9 +493,9 @@ for(const sx of[1,-1]){
   const spread=grp(torso,sx*0.126,0.288,0);spread.rotation.z=sx*0.1;
   const sh=new THREE.Bone(),el=new THREE.Bone(),wr=new THREE.Bone();spread.add(sh);sh.add(el);el.add(wr);el.position.y=-ARM.el;wr.position.y=-(ARM.wr-ARM.el);
   spread.updateMatrixWorld(true);
-  skinned(armG,T(C.blue),new THREE.Skeleton([sh,el,wr]),spread,new THREE.Vector3());
+  skinned(armG,VC(),new THREE.Skeleton([sh,el,wr]),spread,new THREE.Vector3());
   const sl=grp(sh,0,0,0);
-  part(sleeveG,C.yellow,sl,0,0,0,{mat:T(C.yellow,{side:THREE.FrontSide})});
+  part(sleeveG,0,sl,0,0,0,{mat:VC({side:THREE.FrontSide})});
   part(sleeveG,C.red,sl,0,0,0,{mat:T(C.red,{side:THREE.BackSide}),ink:false});
   {const r=new THREE.TorusGeometry(0.0568,0.0036,8,48);r.rotateX(Math.PI/2);r.scale(1,1,0.9);part(r,C.black,sl,0,-0.17,0,{ink:false});}
   /* sleeve streamer: a red ribbon trailing from the cuff */
@@ -490,8 +509,8 @@ for(const sx of[1,-1]){
   const th=new THREE.Bone(),kn=new THREE.Bone(),an=new THREE.Bone();th.position.copy(hp);hips.add(th);th.add(kn);kn.add(an);kn.position.y=-LEG.kn;an.position.y=-(LEG.an-LEG.kn);
   hips.updateMatrixWorld(true);
   const sk=new THREE.Skeleton([th,kn,an]);
-  skinned(legG,T(C.blue),sk,hips,hp);
-  skinned(hakaG,T(C.blue,{side:THREE.FrontSide}),sk,hips,hp);
+  skinned(legG,VC(),sk,hips,hp);
+  skinned(hakaG,VC({side:THREE.FrontSide}),sk,hips,hp);
   skinned(hakaG,T(0x17377a,{side:THREE.BackSide}),sk,hips,hp,false);
   {const r=new THREE.TorusGeometry(0.084,0.0042,8,56);r.rotateX(Math.PI/2);r.scale(1,1,0.92);part(r,C.black,kn,0,-(LEG.hem-LEG.kn)+0.004,0,{ink:false});}
   part(lathe([[0.024,0.03],[0.026,0.0],[0.028,-0.015]],28,1,6),C.white,an,0,0,0,{ink:false});
@@ -630,7 +649,9 @@ function pose(p,sp,dt){
   let min=1e9,low=0,lowPt=null;
   legs.forEach((l,i)=>contacts.forEach(([part,v])=>{l[part].localToWorld(tmp.copy(v));if(tmp.y<min){min=tmp.y;low=i;lowPt=tmp.clone()}}));
   const f2=ph%0.5,flight=0.032*sp*Math.exp(-(((f2-0.44)/0.05)**2));
-  kreis.position.y=-min+flight;
+  const yT=-min+flight;S.ry=(S.ry===undefined||dt===0&&S.ryInit!==true)?(S.ryInit=true,yT):spring(S.ry,yT,26,dt);
+  kreis.position.y=S.ry;
+  torso.scale.set(1,1+0.006*Math.sin(p*2+0.6),1+0.014*Math.sin(p*2+0.6));
   if(dt>0&&low!==S.low){if(S.low!==-1&&lowPt)puff(lowPt);S.low=low;}
   /* cape: blown back with speed, edges cupping, travelling ripples, split tails flicking */
   const a0=0.2+0.6*spN;
@@ -650,8 +671,13 @@ function pose(p,sp,dt){
     const ae=(0.25+0.65*spN)+0.06*Math.sin(S.t*7+3+tl.sx);
     tl.tip.position.set(Math.sin(S.t*5-4+tl.sx)*0.012,-0.3*Math.cos(ae),-0.3*Math.sin(ae)+0.002);}
   cloak.rotation.y=0.28*Math.sin(S.t*3.1)*(0.5+0.5*spN);cloak.rotation.z=0.08*Math.sin(S.t*2.1);
-  for(const l of locks){l.g.rotation.x=l.base-0.14*spN+Math.sin(S.t*l.f+l.ph)*0.055*(0.4+0.8*spN);
-    l.g.rotation.y=Math.sin(S.t*l.f*0.7+l.ph*1.7)*0.045*(0.5+spN);}
+  for(const l of locks){l.g.rotation.x=l.base-0.06*spN+Math.sin(S.t*l.f*0.5+l.ph)*0.02;
+    const g=l.m.geometry,P=g.attributes.position.array,B=g.userData.base,TT=g.userData.tt,wind=0.16*spN,A=0.12*l.amp*(0.35+0.85*spN),Y=0.09*l.amp*(0.4+spN);
+    for(let k=0;k<TT.length;k++){const t=TT[k],t2=t*t;
+      const a=(Math.sin(S.t*l.f-t*3.4+l.ph)*A-wind)*t2,w=Math.sin(S.t*l.f*0.8-t*2.8+l.ph*1.3)*Y*t2;
+      const x=B[k*3],y=B[k*3+1],z=B[k*3+2],ca=Math.cos(a),sa=Math.sin(a),y1=y*ca-z*sa,z1=y*sa+z*ca,cw=Math.cos(w),sw=Math.sin(w);
+      P[k*3]=x*cw+z1*sw;P[k*3+1]=y1;P[k*3+2]=-x*sw+z1*cw;}
+    g.attributes.position.needsUpdate=true;g.computeVertexNormals();}
   /* expression: blinks, eyes narrow and brows set as he speeds up, mouth opens to breathe */
   face.blinkT-=dt;if(face.blinkT<=0){face.blink=0.16;face.blinkT=2.4+Math.random()*3.2;}
   let bl=1;if(face.blink>0){face.blink-=dt;const u=1-face.blink/0.16;bl=Math.max(0.06,Math.abs(1-2*u));}
@@ -767,7 +793,8 @@ rig(0,10);camPos.copy(wantPos);camLook.copy(wantLook);fov=wantFov;
 status.remove();
 const clock=new THREE.Clock();
 renderer.setAnimationLoop(()=>{
-  const real=Math.min(clock.getDelta(),0.05),dt=S.paused?0:real,sp=S.speed;
+  const real=Math.min(clock.getDelta(),0.05),dt=S.paused?0:real;
+  S.spS=(S.spS??S.speed)+(S.speed-(S.spS??S.speed))*(1-Math.exp(-real*2.2));const sp=S.spS;
   S.t+=dt;S.rt+=real;
   const cadence=1.25+0.55*sp,v=1.25*cadence*sp*0.9;
   S.phase+=dt*Math.PI*2*cadence;S.dist+=v*dt;
