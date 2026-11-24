@@ -136,6 +136,7 @@ footer{font-size:13px;color:var(--muted);padding-top:0}
 </main>
 <footer class="band wrap">Original character and landscape, modelled and animated in code from primitive solids.</footer>
 
+<script src="kreis_body.js"></script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <script type="module">
 {
@@ -314,17 +315,39 @@ const profR=(pts,y)=>{const pp=new THREE.SplineCurve(pts.map(([r,yy])=>V2(r,yy))
 const limb=(pts,sz=0.92)=>lathe([[0.0005,-pts[0][1]+0.012],...pts.map(([r,d])=>[r,-d]),[0.0005,-pts.at(-1)[1]-0.012]],32,sz,36);
 const blob=(sx,sy,sz,seg=32)=>{const g=new THREE.SphereGeometry(1,seg,Math.round(seg*0.6));g.scale(sx,sy,sz);return g};
 
-/* hips, pleated hakama top and obi */
-const hips=grp(body,0,0.74,0);
+/* the sculpted body: decoded from kreis_body.js (one continuous mesh with colours and skin weights) */
+const KB=window.KREIS_BODY;
+const dec=(str,TA)=>{const b=atob(str),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return new TA(u.buffer)};
+const IDXA=KB.idxType==='u16'?Uint16Array:Uint32Array;
+const bodyGeo=new THREE.BufferGeometry();
+bodyGeo.setAttribute('position',new THREE.BufferAttribute(dec(KB.pos,Float32Array),3));
+{const c8=dec(KB.col,Uint8Array),cf=new Float32Array(c8.length),q=new THREE.Color();
+ for(let i=0;i<c8.length;i+=3){q.setRGB(c8[i]/255,c8[i+1]/255,c8[i+2]/255,THREE.SRGBColorSpace);cf[i]=q.r;cf[i+1]=q.g;cf[i+2]=q.b;}
+ bodyGeo.setAttribute('color',new THREE.BufferAttribute(cf,3));}
+bodyGeo.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(Uint16Array.from(dec(KB.si,Uint8Array)),4));
+bodyGeo.setAttribute('skinWeight',new THREE.BufferAttribute(Float32Array.from(dec(KB.sw,Uint8Array),v=>v/255),4));
+bodyGeo.setIndex(new THREE.BufferAttribute(dec(KB.idx,IDXA),1));bodyGeo.computeVertexNormals();
+const subProbe=(key,pos,sc)=>{const g=new THREE.BufferGeometry();g.setAttribute('position',bodyGeo.attributes.position);g.setIndex(new THREE.BufferAttribute(dec(KB[key],IDXA),1));
+  const m=new THREE.Mesh(g);m.position.copy(pos);m.scale.setScalar(sc);m.updateMatrixWorld(true);return m};
+const torsoProbe=subProbe('torsoIdx',new THREE.Vector3(0,-0.075,0),1);
+const headProbe=subProbe('headIdx',new THREE.Vector3(0,-0.427/0.9,0),1/0.9);
+const _r=new THREE.Raycaster(),_o=new THREE.Vector3(),_d=new THREE.Vector3();
+/* project onto the chest (front) or back, in torso coordinates */
+const onTorsoN=(x,y,back=false)=>{_o.set(x,y,back?-0.5:0.5);_d.set(0,0,back?1:-1);_r.set(_o,_d);const h=_r.intersectObject(torsoProbe)[0];
+  return h?{p:h.point.clone(),n:h.face.normal.clone()}:{p:new THREE.Vector3(x,y,back?-0.09:0.09),n:new THREE.Vector3(0,0,back?-1:1)}};
+const onTorso=(x,y,off=0.003,back=false)=>{const r=onTorsoN(x,y,back);return r.p.addScaledVector(r.n,off)};
+
+/* hips (root bone) and obi details */
+const hips=new THREE.Bone();hips.position.set(0,0.74,0);body.add(hips);
 part(gradY(lathe([[0.0005,-0.075],[0.07,-0.07],[0.104,-0.045],[0.112,-0.005],[0.104,0.04],[0.092,0.075],[0.0005,0.08]],64,0.78,40),0x1d4a9e,0x2f63c6,-0.075,0.06),0,hips,0,0,0,{mat:VC()});
 part(lathe([[0.112,0.0],[0.117,0.006],[0.114,0.03],[0.107,0.052],[0.101,0.058]],64,0.78,20),C.black,hips,0,0.026,0);
 {const r=new THREE.TorusGeometry(0.1152,0.0036,10,72);r.rotateX(Math.PI/2);r.scale(1,1,0.78);part(r,C.red,hips,0,0.052,0,{ink:false});}
-part(blob(0.034,0.026,0.02),C.black,hips,0,0.04,-0.088);
+part(blob(0.034,0.026,0.02),C.black,hips,0,0.054,-0.094);
 /* obi tails: two ribbons that stream from the knot */
 const tails=[];
 for(const sx of[1,-1]){const g=new THREE.PlaneGeometry(1,1,2,16),p=g.attributes.position,b=[];
   for(let i=0;i<p.count;i++){const s=0.5-p.getY(i),u=p.getX(i);const x=u*0.042*(1-0.25*s),y=-s*0.3;p.setXYZ(i,x,y,0);b.push(x,y,s,u);}
-  const m=new THREE.Mesh(g,T(C.black,{side:THREE.DoubleSide}));m.castShadow=true;m.position.set(sx*0.02,0.03,-0.115);m.rotation.z=sx*0.12;hips.add(m);
+  const m=new THREE.Mesh(g,T(C.black,{side:THREE.DoubleSide}));m.castShadow=true;m.position.set(sx*0.02,0.046,-0.104);m.rotation.z=sx*0.12;hips.add(m);
   const tip=new THREE.Mesh(new THREE.CircleGeometry(0.011,20),T(C.red,{side:THREE.DoubleSide}));m.add(tip);
   tails.push({m,g,b,sx,tip});}
 
@@ -333,30 +356,22 @@ const waistB=new THREE.Bone();waistB.position.set(0,0.075,0);hips.add(waistB);
 const chestB=new THREE.Bone();chestB.position.set(0,0.15,0);waistB.add(chestB);
 const neckB=new THREE.Bone();neckB.position.set(0,0.16,0);chestB.add(neckB);
 const torso=grp(chestB,0,-0.15,0);
-const TP=[[0.0005,-0.012],[0.09,-0.006],[0.087,0.04],[0.098,0.1],[0.115,0.165],[0.122,0.21],[0.12,0.25],[0.106,0.285],[0.074,0.308],[0.04,0.322],[0.032,0.34],[0.03,0.37],[0.0005,0.385]],TSZ=0.72;
-const onTorso=(x,y,off=0.003)=>{const r=profR(TP,y);return new THREE.Vector3(x,y,TSZ*Math.sqrt(Math.max(0,r*r-x*x))+off)};
 /* kimono wrap line, left over right */
 {const pts=[];for(let i=0;i<=16;i++){const t=i/16,y=0.312-t*0.29,x=0.042-t*0.11+0.02*Math.sin(t*Math.PI);pts.push(onTorso(x,y,0.003));}
  part(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),48,0.0042,8),C.black,torso,0,0,0,{ink:false});}
-/* mandarin collar */
-part(lathe([[0.058,0.0],[0.061,0.004],[0.057,0.03],[0.052,0.036]],48,0.9,10),C.black,torso,0,0.296,0);
+/* mandarin collar: a crisp black band where the neck meets the top */
+part(lathe([[0.064,0.0],[0.06,0.006],[0.05,0.02],[0.043,0.03],[0.041,0.034]],64,0.92,16),C.black,torso,0,0.293,0.002);
 /* mon: a blue family crest on the chest, ringed in white */
-{const c=onTorso(-0.055,0.2,0.0),n=new THREE.Vector3(-c.x/(TSZ*TSZ),0,c.z).normalize();
+{const r=onTorsoN(-0.055,0.205),c=r.p,n=r.n;
  const mon=grp(torso,c.x,c.y,c.z);mon.lookAt(mon.position.clone().add(n));
  part(new THREE.CylinderGeometry(0.022,0.022,0.004,40).rotateX(Math.PI/2),C.white,mon,0,0,0.004,{ink:false});
  part(new THREE.CylinderGeometry(0.016,0.016,0.004,40).rotateX(Math.PI/2),C.blue,mon,0,0,0.0055,{ink:false});
  part(new THREE.CylinderGeometry(0.0055,0.0055,0.004,24).rotateX(Math.PI/2),C.white,mon,0,0,0.007,{ink:false});}
 
 /* head: soft cranium tapering to a pointed chin */
-const head=grp(neckB,0,0.042,0);head.scale.setScalar(0.9);
-const headGeo=(()=>{const g=new THREE.SphereGeometry(1,72,54),p=g.attributes.position;
-  for(let i=0;i<p.count;i++){let x=p.getX(i),y=p.getY(i),z=p.getZ(i);
-    if(y<0){const k=Math.pow(-y,1.25);x*=1-0.44*k;z*=1-0.16*k;y*=1+0.14*k;}
-    if(z<0)z*=1.07;p.setXYZ(i,x*0.09,y*0.1+0.1,z*0.094);}
-  g.computeVertexNormals();return g})();
-part(headGeo,C.white,head);
+const head=new THREE.Bone();head.position.set(0,0.042,0);head.scale.setScalar(0.9);neckB.add(head);
 /* face drawn onto the head surface */
-const probe=new THREE.Mesh(headGeo);probe.updateMatrixWorld();
+const probe=headProbe;
 const ray=new THREE.Raycaster(),rO=new THREE.Vector3(),rD=new THREE.Vector3(0,0,-1),nrm=new THREE.Vector3();
 const decalMat=(c,k,basic)=>basic?new THREE.MeshBasicMaterial({color:c,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2-k,polygonOffsetUnits:-2-k})
   :new THREE.MeshToonMaterial({color:c,gradientMap:gradTex,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2-k,polygonOffsetUnits:-2-k});
@@ -438,18 +453,19 @@ for(const[x,z,len]of[[-0.05,0.03,0.36],[0.05,0.03,0.36],[-0.02,-0.01,0.4],[0.02,
 
 /* sun disc on the back */
 {const d=lathe([[0.0005,0.009],[0.133,0.009],[0.146,0.004],[0.148,0.0],[0.146,-0.004],[0.133,-0.009],[0.0005,-0.009]],72,1,16);d.rotateX(Math.PI/2);
- part(d,C.yellow,torso,0,0.24,-0.116);
- part(new THREE.TorusGeometry(0.118,0.0045,10,72),C.black,torso,0,0.24,-0.126,{ink:false});
- part(new THREE.CylinderGeometry(0.044,0.044,0.004,48).rotateX(Math.PI/2),C.blue,torso,0,0.24,-0.127,{ink:false});}
+ const BZ=onTorso(0,0.24,0,true).z;
+ part(d,C.yellow,torso,0,0.24,BZ-0.011);
+ part(new THREE.TorusGeometry(0.118,0.0045,10,72),C.black,torso,0,0.24,BZ-0.021,{ink:false});
+ part(new THREE.CylinderGeometry(0.044,0.044,0.004,48).rotateX(Math.PI/2),C.blue,torso,0,0.24,BZ-0.022,{ink:false});}
 
 /* cape */
 const cg=new THREE.PlaneGeometry(1,1,12,24),cp=cg.attributes.position,cbase=[];
 for(let i=0;i<cp.count;i++){const s=0.5-cp.getY(i),u=cp.getX(i)*2,w=0.29*Math.pow(s,0.7)*(1+0.14*s);
   const x=u*w,y=-s*0.76+0.2*Math.pow(s,3)*Math.pow(1-Math.abs(u),1.4);cp.setXYZ(i,x,y,0);cbase.push(x,y,s,u);}
 gradY(cg,0x9e1218,0xe8342a,-0.62,0.0);
-const cloak=new THREE.Mesh(cg,VC({side:THREE.DoubleSide}));cloak.castShadow=true;cloak.position.set(0,0.312,-0.132);torso.add(cloak);
+const cloak=new THREE.Mesh(cg,VC({side:THREE.DoubleSide}));cloak.castShadow=true;cloak.position.set(0,0.312,onTorso(0,0.3,0,true).z-0.028);torso.add(cloak);
 
-/* limbs: continuous skinned meshes that bend smoothly at elbows and knees */
+/* ---------- skeleton and the sculpted body: one continuous skinned surface ---------- */
 const INKS=new THREE.ShaderMaterial({uniforms:{t:{value:0.0032}},side:THREE.BackSide,
   vertexShader:`#include <common>
 #include <skinning_pars_vertex>
@@ -464,76 +480,30 @@ vec3 p=transformed+normalize(objectNormal)*t;
 gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
   fragmentShader:`void main(){gl_FragColor=vec4(0.07,0.06,0.07,1.);}`});
 const smo=(a,b,x)=>{const t=Math.min(1,Math.max(0,(x-a)/(b-a)));return t*t*(3-2*t)};
-/* skin weights: blend between neighbouring bones across each joint */
-function skinAttr(g,joints,blends){
-  const p=g.attributes.position,si=[],sw=[];
-  for(let i=0;i<p.count;i++){const d=-p.getY(i);let best=0,bd=1e9;
-    joints.forEach((j,k)=>{const e=Math.abs(d-j);if(e<bd){bd=e;best=k}});
-    const w=smo(joints[best]-blends[best],joints[best]+blends[best],d);si.push(best,best+1,0,0);sw.push(1-w,w,0,0);}
-  g.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(si,4));g.setAttribute('skinWeight',new THREE.Float32BufferAttribute(sw,4));return g;}
-function skinned(g,mat,sk,parent,pos,ink=true){
-  const m=new THREE.SkinnedMesh(g,mat);m.position.copy(pos);m.castShadow=true;m.receiveShadow=true;m.frustumCulled=false;parent.add(m);
-  parent.updateMatrixWorld(true);m.bind(sk);
-  if(ink){const o=new THREE.SkinnedMesh(g,INKS);o.position.copy(pos);o.frustumCulled=false;parent.add(o);parent.updateMatrixWorld(true);o.bind(sk);}
-  return m;}
-const tubeG=(pts,seg=40,sz=0.92,steps=70,pleat=0,np=0)=>lathe(pts.map(([r,d])=>[r,-d]),seg,sz,steps,pleat,np);
-const ARM={el:0.2,wr:0.385},LEG={kn:0.34,an:0.67,hem:0.645};
-const armG=gradY(skinAttr(tubeG([[0.0005,-0.03],[0.024,-0.024],[0.035,-0.014],[0.04,0],[0.04,0.03],[0.036,0.09],[0.031,0.16],[0.029,0.2],[0.031,0.24],[0.025,0.32],[0.019,0.375],[0.0005,0.392]],48),[ARM.el,ARM.wr],[0.04,0.014]),0x173f8f,0x2c62c4,-0.39,0.0);
-const legG=gradY(skinAttr(tubeG([[0.0005,-0.012],[0.058,0],[0.06,0.05],[0.052,0.17],[0.04,0.31],[0.037,0.34],[0.042,0.4],[0.035,0.51],[0.023,0.63],[0.02,0.665],[0.0005,0.68]],48),[LEG.kn,LEG.an],[0.045,0.016]),0x173f8f,0x2a5cbd,-0.68,0.0);
-const hakaG=gradY(skinAttr(tubeG([[0.064,-0.03],[0.068,0.04],[0.07,0.18],[0.068,0.3],[0.066,0.36],[0.069,0.46],[0.076,0.56],[0.084,0.632],[0.0835,LEG.hem]],64,0.92,80,0.028,10),[LEG.kn,LEG.an],[0.08,0.01]),0x153a86,0x2f63c6,-0.645,0.03);
-const sleeveG=gradY(lathe([[0.0005,0.05],[0.026,0.045],[0.04,0.03],[0.045,0.008],[0.046,-0.03],[0.047,-0.08],[0.049,-0.12],[0.05,-0.14],[0.0495,-0.146]],56,0.9,36),0xe7a300,0xffd94a,-0.146,0.05);
-/* shoe: a heel block and a pointed toe cap that bends at the ball of the foot */
-const shoe=(sx,sy,sz,stretch)=>{const g=new THREE.SphereGeometry(1,36,18),p=g.attributes.position;
-  for(let i=0;i<p.count;i++){let x=p.getX(i),y=p.getY(i),z=p.getZ(i);if(y<-0.5)y=-0.5;if(z>0&&stretch){z*=stretch;x*=1-0.42*z/stretch;}p.setXYZ(i,x*sx,y*sy,z*sz);}
-  g.computeVertexNormals();return g};
-const heelG=shoe(0.04,0.032,0.072,0).translate(0,-0.022,0.012);
-const toeG=shoe(0.037,0.028,0.055,1.65).translate(0,0.0,0.03);
-const arms=[],legs=[];
-for(const sx of[1,-1]){
-  const spread=grp(torso,sx*0.126,0.288,0);spread.rotation.z=sx*0.1;
+const ARM={el:0.2,wr:0.385},LEG={kn:0.34,an:0.67},SPREAD=0.13,HIPX=0.072;
+const arms=[],legs=[],boneMap={hips,waist:waistB,chest:chestB,neck:neckB,head};
+for(const sx of[1,-1]){const S_=sx>0?'L':'R';
+  const spread=grp(torso,sx*0.126,0.288,0);spread.rotation.z=sx*SPREAD;
   const sh=new THREE.Bone(),el=new THREE.Bone(),wr=new THREE.Bone();spread.add(sh);sh.add(el);el.add(wr);el.position.y=-ARM.el;wr.position.y=-(ARM.wr-ARM.el);
-  spread.updateMatrixWorld(true);
-  skinned(armG,VC(),new THREE.Skeleton([sh,el,wr]),spread,new THREE.Vector3());
   const sl=grp(sh,0,0,0);
-  part(sleeveG,0,sl,0,0,0,{mat:VC({side:THREE.FrontSide})});
-  part(sleeveG,C.red,sl,0,0,0,{mat:T(C.red,{side:THREE.BackSide}),ink:false});
-  {const r=new THREE.TorusGeometry(0.0498,0.0034,8,48);r.rotateX(Math.PI/2);r.scale(1,1,0.9);part(r,C.black,sl,0,-0.144,0,{ink:false});}
+  {const r=new THREE.TorusGeometry(0.0502,0.0046,10,56);r.rotateX(Math.PI/2);part(r,C.black,sl,0,-0.147,0);}
   /* sleeve streamer: a red ribbon trailing from the cuff */
   const sg=new THREE.PlaneGeometry(1,1,1,10),sp=sg.attributes.position,sb=[];
   for(let i=0;i<sp.count;i++){const s=0.5-sp.getY(i),u=sp.getX(i);const x=u*0.03*(1-0.6*s),y=-s*0.16;sp.setXYZ(i,x,y,0);sb.push(x,y,s);}
-  const streamer=new THREE.Mesh(sg,T(C.red,{side:THREE.DoubleSide}));streamer.castShadow=true;streamer.position.set(0,-0.144,-0.044);streamer.rotation.y=Math.PI/2*0;sl.add(streamer);
-  part((()=>{const g=new THREE.SphereGeometry(1,40,28),q=g.attributes.position;
-    for(let k=0;k<q.count;k++){let x=q.getX(k),y=q.getY(k),z=q.getZ(k);const t=(1-y)/2,w=0.74+0.34*Math.sin(Math.min(1,t*1.25)*Math.PI*0.6);
-      x*=w;z*=0.8+0.3*t;if(z>0&&y<0)z*=1-0.22*(-y);q.setXYZ(k,x*0.022,y*0.038,z*0.028);}
-    g.computeVertexNormals();return g})(),C.white,wr,0,-0.032,0.004);
-  {const th=new THREE.CapsuleGeometry(0.009,0.02,4,12);th.rotateZ(sx*0.6);th.rotateX(-0.5);part(th,C.white,wr,sx*0.016,-0.02,0.018);}
+  const streamer=new THREE.Mesh(sg,T(C.red,{side:THREE.DoubleSide}));streamer.castShadow=true;streamer.position.set(0,-0.15,-0.046);sl.add(streamer);
   arms.push({sh,el,wr,sl,streamer,sg,sb});
-  const hp=new THREE.Vector3(sx*0.066,-0.03,0);
-  const th=new THREE.Bone(),kn=new THREE.Bone(),an=new THREE.Bone();th.position.copy(hp);hips.add(th);th.add(kn);kn.add(an);kn.position.y=-LEG.kn;an.position.y=-(LEG.an-LEG.kn);
-  hips.updateMatrixWorld(true);
-  const sk=new THREE.Skeleton([th,kn,an]);
-  skinned(legG,VC(),sk,hips,hp);
-  skinned(hakaG,VC({side:THREE.FrontSide}),sk,hips,hp);
-  skinned(hakaG,T(0x17377a,{side:THREE.BackSide}),sk,hips,hp,false);
-  {const r=new THREE.TorusGeometry(0.084,0.0042,8,56);r.rotateX(Math.PI/2);r.scale(1,1,0.92);part(r,C.black,kn,0,-(LEG.hem-LEG.kn)+0.004,0,{ink:false});}
-  part(lathe([[0.024,0.03],[0.026,0.0],[0.028,-0.015]],28,1,6),C.white,an,0,0,0,{ink:false});
-  const heel=part(heelG,C.red,an);
-  const toeJ=grp(an,0,-0.024,0.07);const toe=part(toeG,C.red,toeJ);
-  legs.push({th,kn,an,heel,toeJ,toe});
+  const th=new THREE.Bone(),kn=new THREE.Bone(),an=new THREE.Bone(),toeJ=new THREE.Bone();
+  th.position.set(sx*HIPX,-0.03,0);hips.add(th);th.add(kn);kn.add(an);an.add(toeJ);kn.position.y=-LEG.kn;an.position.y=-(LEG.an-LEG.kn);toeJ.position.set(0,-0.024,0.07);
+  {const r=new THREE.TorusGeometry(0.0672,0.0046,10,64);r.rotateX(Math.PI/2);part(r,C.black,kn,0,-0.302,0);}
+  legs.push({th,kn,an,heel:an,toeJ,toe:toeJ});
+  Object.assign(boneMap,{['sh'+S_]:sh,['el'+S_]:el,['wr'+S_]:wr,['th'+S_]:th,['kn'+S_]:kn,['an'+S_]:an,['toe'+S_]:toeJ});
 }
-
-/* the continuous torso: waist, chest, sculpted shoulders and neck in one smooth surface */
-{const g=lathe(TP,80,1,140),q=g.attributes.position;
- for(let i=0;i<q.count;i++){let x=q.getX(i),y=q.getY(i),z=q.getZ(i);
-   const zs=TSZ+(1-TSZ)*smo(0.3,0.335,y),r=Math.hypot(x,z)||1e-6;z*=zs;
-   x*=1+0.22*Math.exp(-(((y-0.272)/0.03)**2))*Math.pow(Math.abs(x)/r,2);q.setXYZ(i,x,y,z);}
- g.computeVertexNormals();
- const a=new Float32Array(q.count*3),si=[],sw=[],Y0=new THREE.Color(0xe2a400),Y1=new THREE.Color(0xffd94a),W=new THREE.Color(C.white),Q=new THREE.Color();
- for(let i=0;i<q.count;i++){const y=q.getY(i);Q.copy(Y0).lerp(Y1,smo(0,0.28,y)).lerp(W,smo(0.304,0.316,y));a[i*3]=Q.r;a[i*3+1]=Q.g;a[i*3+2]=Q.b;
-   if(y<0.24){const w=smo(0.05,0.18,y);si.push(0,1,0,0);sw.push(1-w,w,0,0);}else{const w=smo(0.3,0.338,y);si.push(1,2,0,0);sw.push(1-w,w,0,0);}}
- g.setAttribute('color',new THREE.BufferAttribute(a,3));
- g.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(si,4));g.setAttribute('skinWeight',new THREE.Float32BufferAttribute(sw,4));
- skinned(g,VC(),new THREE.Skeleton([waistB,chestB,neckB]),hips,new THREE.Vector3(0,0.075,0));}
+/* bind the sculpt to the skeleton at rest */
+{body.updateMatrixWorld(true);
+ const sk=new THREE.Skeleton(KB.bones.map(n=>boneMap[n]));
+ const bm=new THREE.SkinnedMesh(bodyGeo,VC());bm.position.copy(hips.position);bm.castShadow=true;bm.receiveShadow=true;bm.frustumCulled=false;body.add(bm);
+ body.updateMatrixWorld(true);bm.bind(sk);
+ const ol=new THREE.SkinnedMesh(bodyGeo,INKS);ol.position.copy(hips.position);ol.frustumCulled=false;body.add(ol);body.updateMatrixWorld(true);ol.bind(sk);}
 
 /* ---------- dust puffs at foot strikes ---------- */
 const puffs=[];for(let i=0;i<14;i++){const m=new THREE.Mesh(G.sph,new THREE.MeshStandardMaterial({color:0xe9dfc9,roughness:1,transparent:true,opacity:0,depthWrite:false}));m.visible=false;world.add(m);puffs.push({m,life:0});}
