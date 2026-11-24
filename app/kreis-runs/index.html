@@ -69,7 +69,7 @@ button[aria-pressed=true]{background:var(--ink);color:var(--bg)}
 #play{min-width:96px;flex:none;background:var(--red);border-color:var(--red);color:#fff}
 #play:hover{filter:brightness(1.08)}
 input[type=range]{width:150px;flex:none;accent-color:var(--red);height:44px}
-output{font-variant-numeric:tabular-nums;min-width:3.2ch;font-weight:500}
+output{font-variant-numeric:tabular-nums;min-width:11ch;font-weight:500;white-space:nowrap}
 .notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:18px 32px;margin-top:clamp(26px,4vw,44px)}
 .notes div{border-top:2.5px solid var(--line);padding-top:10px}
 .notes b{display:block;font-size:19px;margin-bottom:2px}
@@ -131,7 +131,7 @@ footer{font-size:13px;color:var(--muted);padding-top:0}
       <button id="zReset" type="button">Reset view</button>
     </div>
     <div class="grp"><label for="speed"><span style="font-size:14px;color:var(--muted)">Speed</span></label>
-      <input id="speed" type="range" min="0.5" max="2" step="0.1" value="1"><output id="speedOut" for="speed">1.0×</output>
+      <input id="speed" type="range" min="0.2" max="2" step="0.05" value="1"><output id="speedOut" for="speed">1.0×</output>
     </div>
   </div>
   <div class="controls">
@@ -148,7 +148,7 @@ footer{font-size:13px;color:var(--muted);padding-top:0}
   </div>
 
   <section class="notes">
-    <div><b>The runner</b><p>One sculpted body on a 19-bone skeleton, run by physics. Speed sets his stride, step rate, ground-contact time and flight time. While a foot is on the ground it stays planted, moving back at exactly the ground's speed with no sliding. It lands on the heel, rolls flat, then pushes off from the toes as the toe joint bends. Each leg reaches its foot by inverse kinematics, while his hips dip at mid-stance and rise through each flight. His arms swing against his legs.</p></div>
+    <div><b>The runner</b><p>One sculpted body on a 19-bone skeleton, moved by physics across a full range of speeds. From about 0.8 m/s he walks: both feet touch the ground together for a moment and his body rises over each step. Around 1.6 m/s he blends into a jog, then a run, then a sprint. Each gait's step rate and ground-contact time come from measured human data scaled to his size. Planted feet never slide: each foot lands on the heel, rolls flat and pushes off from the toes, landing more on the forefoot and pushing off harder the faster he goes. He leans into acceleration and back when braking, each landing sends a small jolt up his body, and his pelvis turns and dips against his shoulders with every stride.</p></div>
     <div><b>His look</b><p>A Japanese-meets-Bauhaus hero, cel-shaded with ink outlines. He has a flame-coloured crest of hair and a wrap top with a family crest. A black obi with streaming tails and red-lined sleeves with ribbons complete the outfit, along with pleated hakama and a cape split into two tails. He blinks, and his eyes narrow, brows set and mouth opens as he runs faster.</p></div>
     <div><b>The camera</b><p>Every angle can circle a full 360° around Kreis: turn on 360° circle, or drag the scene to orbit and tilt by hand. Zoom with the scroll wheel, a pinch, the slider or <kbd>+</kbd> <kbd>−</kbd>. Director cuts between seven shots, each with its own zoom move. Hold the move pad to slide the camera left, right, up, down, forward or back, along each axis separately. Reset view returns to the starting position.</p></div>
     <div><b>Shortcuts</b><p><kbd>Space</kbd> pause, <kbd>1</kbd>–<kbd>6</kbd> cameras, <kbd>C</kbd> 360° circle, arrow keys orbit and tilt, <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> move the camera forward, left, back and right, <kbd>Q</kbd> <kbd>E</kbd> down and up, <kbd>N</kbd> day or dusk, <kbd>Z</kbd> dolly zoom, <kbd>0</kbd> reset zoom.</p></div>
@@ -551,7 +551,7 @@ const syncUI=()=>{playBtn.textContent=S.paused?'Run':'Pause';
   document.querySelectorAll('[data-cam]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.cam===S.cam)));
   document.querySelectorAll('[data-tod]').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.tod===S.tod)));
   document.querySelectorAll('[data-fx]').forEach(b=>b.setAttribute('aria-pressed',String(!!fx[b.dataset.fx])));
-  speedIn.value=S.speed;speedOut.textContent=(+S.speed).toFixed(1)+'×';
+  speedIn.value=S.speed;{const v=0.5+1.35*S.speed;speedOut.textContent=v.toFixed(1)+' m/s · '+(v<1.5?'walk':v<2.1?'jog':v<2.8?'run':'sprint');}
   zoomIn.value=z2s(S.zoom);zoomOut.textContent=fmtMag(S.zoom);
   stage.classList.toggle('bars',fx.bars);slate.hidden=S.cam!=='director';$('mover').hidden=!fx.pad;};
 const setZoom=z=>{S.zoom=clampZ(z);store.set('kreis-zoom',String(S.zoom));syncUI()};
@@ -634,43 +634,49 @@ const TOEK=[0,0,2,16,30,10,0,0,0,0];
 const DEG=Math.PI/180;
 const cyc=(a,ph)=>{const n=a.length,x=(((ph%1)+1)%1)*n,i=Math.floor(x),t=x-i,p0=a[(i-1+n)%n],p1=a[i],p2=a[(i+1)%n],p3=a[(i+2)%n];
   return 0.5*(2*p1+(-p0+p2)*t+(2*p0-5*p1+4*p2-p3)*t*t+(-p0+3*p1-3*p2+p3)*t*t*t);};
-/* ---------- gait from physics: speed sets velocity, cadence, ground-contact and flight times ---------- */
-const GY=0.04,GRAV=9.81,L1=0.34,L2=0.33,REACH=0.66,ANK_H=0.038,HEEL=new THREE.Vector3(0,-0.038,-0.045),BALL=new THREE.Vector3(0,-0.038,0.07);
+/* ---------- gait from physics: one speed, from a walk through a jog and run to a sprint ----------
+   timing follows measured human gaits, scaled to Kreis's leg length (times x0.86, Froude scaling) */
+const GY=0.04,GRAV=9.81,L1=0.34,L2=0.33,REACH=0.66,HEEL=new THREE.Vector3(0,-0.038,-0.045),BALL=new THREE.Vector3(0,-0.038,0.07);
+const lerp=(a,b,t)=>a+(b-a)*t;
+const speedOf=sp=>0.5+1.35*sp;                       /* m/s */
+const gaitName=v=>v<1.5?'walk':v<2.1?'jog':v<2.8?'run':'sprint';
 function gaitParams(sp){
-  /* faster running: shorter ground contact, quicker steps, longer flight */
-  const v=1.2+1.0*sp,steps=2.55+0.4*sp,Ts=1/steps,tc=0.25-0.045*sp,tf=Math.max(0.02,Ts-tc);
-  const v0=GRAV*tf/2,dip=v0*tc/Math.PI+0.008,L=v*tc;
-  /* lower the hips (more knee bend) until both the landing and the push-off are within the leg's reach */
+  const v=speedOf(sp),run=smo(1.45,1.75,v);         /* 0 = walking, 1 = running */
+  const steps=lerp(1.45+0.5*v,2.6+0.25*v,run),Ts=1/steps,T=2*Ts;
+  const dutyW=Math.min(0.66,0.62-0.04*(v-0.8)),dutyR=(0.31-0.04*v)/T;
+  const duty=lerp(dutyW,dutyR,run),tc=duty*T,tf=Math.max(0.0,Ts-tc);
+  const v0=GRAV*tf/2,dipR=(v0*tc/Math.PI+0.008)*run,L=v*tc,AW=0.017*(1-run);
   const zTD=H=>Math.sqrt(Math.max(0,REACH*REACH-(H-0.048)**2)),zTO=H=>Math.sqrt(Math.max(0,REACH*REACH-(H-0.073)**2));
-  let H=0.648-0.01*(sp-1)+dip;
+  /* hip height at touchdown: walking vaults over a nearly straight leg, running drops onto a bent one */
+  let H=lerp(0.674-2*AW,0.648-0.01*(sp-1)+dipR,run);
   while(zTD(H)+zTO(H)<L-0.0485+0.01&&H>0.56)H-=0.003;
   const hi=zTD(H)+0.0105-0.003,lo=L-0.038-zTO(H)+0.003;
-  const zA0=Math.min(hi,Math.max(lo,0.33*L+0.03));
-  return{v,Ts,T:2*Ts,tc,tf,v0,dip,Hlow:H-dip,duty:tc/(2*Ts),L,zA0};
+  const zA0=Math.min(hi,Math.max(lo,lerp(0.42*L+0.02,0.33*L+0.03,run)));
+  return{v,run,Ts,T,tc,tf,v0,dip:dipR,AW,Htd:H,duty,L,zA0,
+    th0:lerp(19,16-6*sp,run)*DEG,be0:lerp(30,32+6*sp,run)*DEG,swH:lerp(0.26,0.5+0.5*sp,run),reach:lerp(0.04,0.07+0.06*sp,run),
+    footX:lerp(0.075,0.068-0.012*sp,run)};
 }
 const _q=new THREE.Quaternion(),_q2=new THREE.Quaternion(),_m=new THREE.Matrix4(),_v=new THREE.Vector3(),_w=new THREE.Vector3(),_bq=new THREE.Quaternion();
 const _X=new THREE.Vector3(1,0,0),FWD=new THREE.Vector3(0,0,1);
 const rotX=(v,a)=>{const c=Math.cos(a),s_=Math.sin(a),y=v.y*c-v.z*s_,z=v.y*s_+v.z*c;v.y=y;v.z=z;return v};
 /* ankle position and foot pitch (heel-up positive) for a leg at stride phase f, in body coordinates */
 function footState(G,f,sx,zA0,out){
-  const x=sx*0.06;
+  const x=sx*G.footX;
   if(f<G.duty){const tau=f/G.duty,zA=zA0-G.v*G.tc*tau;
-    if(tau<0.55){const th=(16-6*sp_g)*DEG*(1-smo(0,0.13,tau));
+    if(tau<0.55){const th=G.th0*(1-smo(0,0.14,tau));
       const hb=new THREE.Vector3(x,0,zA+HEEL.z);_v.set(0,-HEEL.y,-HEEL.z);rotX(_v,-th);out.p.copy(hb).add(_v);out.pitch=-th;out.toe=0;}
-    else{const be=(32+6*sp_g)*DEG*smo(0.55,1,tau);
+    else{const be=G.be0*smo(0.55,1,tau);
       const bb=new THREE.Vector3(x,0,zA+BALL.z);_v.set(0,-BALL.y,-BALL.z);rotX(_v,be);out.p.copy(bb).add(_v);out.pitch=be;out.toe=-be;}
     out.stance=true;out.tau=tau;return out;}
-  /* swing: from where the toe left the ground to the next heel strike */
-  const u=(f-G.duty)/(1-G.duty),ue=u*u*(3-2*u),s=0.5+0.5*sp_g;
+  /* swing: heel kicks up behind (more at speed), knee drives the foot forward, toes lift for the strike */
+  const u=(f-G.duty)/(1-G.duty),ue=u*u*(3-2*u),s=G.swH;
   const a=footState(G,G.duty-1e-6,sx,zA0,{p:new THREE.Vector3()}).p.clone();
   const b=footState(G,0,sx,zA0,{p:new THREE.Vector3()}).p.clone();
-  const c1=a.clone().add(new THREE.Vector3(0,0.2*s,-0.1*s)),c2=b.clone().add(new THREE.Vector3(0,0.1*s,0.07+0.06*sp_g));
+  const c1=a.clone().add(new THREE.Vector3(0,0.2*s,-0.1*s)),c2=b.clone().add(new THREE.Vector3(0,0.1*s+0.02,G.reach));
   const k=1-ue;out.p.copy(a).multiplyScalar(k*k*k).addScaledVector(c1,3*k*k*ue).addScaledVector(c2,3*k*ue*ue).addScaledVector(b,ue*ue*ue);
-  const be0=(32+6*sp_g)*DEG,th0=(16-6*sp_g)*DEG;
-  out.pitch=be0+(-th0-be0)*smo(0.1,0.92,u)+18*DEG*Math.sin(Math.PI*smo(0,0.6,u));
-  out.toe=-be0*(1-smo(0,0.3,u));out.stance=false;out.tau=u;return out;
+  out.pitch=G.be0+(-G.th0-G.be0)*smo(0.1,0.92,u)+18*DEG*G.run*Math.sin(Math.PI*smo(0,0.6,u));
+  out.toe=-G.be0*(1-smo(0,0.3,u));out.stance=false;out.tau=u;return out;
 }
-let sp_g=1;
 /* two-bone leg IK in hips space: thigh aims so the knee points forward, knee folds to reach the ankle */
 function legIK(L_,target){
   const H=L_.th.position;_v.copy(target).sub(H);let d=_v.length();const dir=_v.clone().divideScalar(d||1);
@@ -687,21 +693,27 @@ const lag={sh:[0,0],el:[0,0],sl:[0,0],shZ:[0,0]};
 const spring=(cur,tgt,k,dt)=>cur+(tgt-cur)*(dt>0?1-Math.exp(-dt*k):1);
 const face={blinkT:2.2,blink:0};
 const fs=[{p:new THREE.Vector3()},{p:new THREE.Vector3()}],prevF=[0,0];
+/* momentum: lean into acceleration, back when braking; a damped jolt runs up the body at each landing */
+const mom={prevV:null,acc:0,jx:0,jv:0};
 function pose(p,sp,dt){
-  sp_g=sp;
-  const G=gaitParams(sp),ph=p/(Math.PI*2),pp=(ph-0.55)*Math.PI*2,spN=Math.min(1,sp/1.6);
-  /* hips height: spring-mass stance (lowest at mid-stance) and a ballistic flight between steps */
-  const st=((ph*2)%1+1)%1,t=st*G.Ts;let yo;
-  if(t<G.tc)yo=-(G.v0*G.tc/Math.PI)*Math.sin(Math.PI*t/G.tc)-0.008*Math.sin(Math.PI*t/G.tc);
-  else{const tt=t-G.tc;yo=G.v0*tt-GRAV*tt*tt/2;}
-  const hj=G.Hlow+G.dip+yo;
+  const G=gaitParams(sp),ph=p/(Math.PI*2),spN=Math.min(1,sp/1.6),R=G.run;
+  if(dt>0){if(mom.prevV!==null)mom.acc=spring(mom.acc,(G.v-mom.prevV)/dt,6,dt);mom.prevV=G.v;
+    const ja=-170*mom.jx-16*mom.jv;mom.jv+=ja*dt;mom.jx+=mom.jv*dt;}
+  /* hips height: walking vaults (highest at mid-stance), running compresses then flies */
+  const st=((ph*2)%1+1)%1;
+  let yR;{const t=st*G.Ts;if(t<G.tc){const q=Math.sin(Math.PI*t/G.tc);yR=-(G.v0*G.tc/Math.PI)*q-0.008*q;}else{const tt=t-G.tc;yR=G.v0*tt-GRAV*tt*tt/2;}}
+  const hjR=G.Htd+yR,hjW=G.Htd+G.AW*(1+Math.cos(2*Math.PI*(st-G.duty)));
+  const hj=lerp(hjW,hjR,R)-0.012*mom.jx;
   hips.position.y=hj+0.03+GY;   /* the path surface sits 4 cm above the ground plane */
-  hips.rotation.y=-(0.07+0.04*sp)*Math.sin(pp);hips.rotation.z=(0.035+0.015*sp)*Math.cos(pp);hips.rotation.x=0.03*sp;
-  const lean=0.05+0.1*sp;
-  {const tx=lean+0.02*Math.sin(2*pp),ty=0.16*Math.sin(pp),tz=-0.03*Math.cos(pp);waistB.rotation.set(tx*0.42,ty*0.38,tz*0.5);chestB.rotation.set(tx*0.58,ty*0.62,tz*0.5);}
-  {const hx=-lean*0.8-0.02*Math.sin(2*pp),hy=-0.12*Math.sin(pp),hz=-0.015*Math.cos(pp);neckB.rotation.set(hx*0.45,hy*0.45,hz*0.5);head.rotation.set(hx*0.55,hy*0.55,hz*0.5);}
+  /* pelvis turns with the swinging leg and drops on the unloaded side; chest and shoulders counter-rotate */
+  const tw=Math.cos(2*Math.PI*ph),Ap=lerp(0.06,0.06+0.035*sp,R),At=lerp(0.07,0.1+0.05*sp,R);
+  const ld=f=>f<G.duty?Math.sin(Math.PI*f/G.duty):0,f0=((ph%1)+1)%1,f1=((ph+0.5)%1+1)%1;
+  hips.rotation.y=-Ap*tw;hips.rotation.z=lerp(0.025,0.045,R)*(ld(f0)-ld(f1));hips.rotation.x=0.03*sp*R;
+  const lean=lerp(0.03,0.05+0.1*sp,R)+Math.max(-0.12,Math.min(0.16,mom.acc*0.05));
+  {const tx=lean+0.02*R*Math.sin(4*Math.PI*ph)+0.06*mom.jx,ty=At*tw,tz=-0.03*(ld(f0)-ld(f1));
+   waistB.rotation.set(tx*0.42,ty*0.38-Ap*tw*0.3,tz*0.5);chestB.rotation.set(tx*0.58,ty*0.62,tz*0.5);}
+  {const hx=-lean*0.8-0.02*Math.sin(4*Math.PI*ph)-0.05*mom.jx,hy=-(At-Ap)*tw*0.9,hz=-0.015*(ld(f0)-ld(f1));neckB.rotation.set(hx*0.45,hy*0.45,hz*0.5);head.rotation.set(hx*0.55,hy*0.55,hz*0.5);}
   kreis.position.y=0;kreis.updateMatrixWorld(true);
-  /* where the foot lands: as far forward as the leg can reach at touchdown, about a third of the stance ahead */
   const zA0=G.zA0;
   for(let i=0;i<2;i++){
     const f=((ph+i*0.5)%1+1)%1,L_=legs[i],A=arms[i],side=i?-1:1,F=footState(G,f,side,zA0,fs[i]);
@@ -713,20 +725,22 @@ function pose(p,sp,dt){
     _q.setFromAxisAngle(_X,F.pitch);_bq.multiply(_q);
     L_.an.quaternion.copy(_q2.invert().multiply(_bq));
     L_.toeJ.rotation.set(F.toe,0,0);
-    if(dt>0&&prevF[i]>0.8&&f<0.2){L_.an.updateMatrixWorld(true);L_.an.localToWorld(tmp.copy(HEEL));tmp.y=GY;puff(tmp);}
+    if(dt>0&&prevF[i]>0.8&&f<0.2){mom.jv+=lerp(0.25,0.6+0.35*sp,R);
+      if(R>0.3){L_.an.updateMatrixWorld(true);L_.an.localToWorld(tmp.copy(HEEL));tmp.y=GY;puff(tmp);}}
     prevF[i]=f;
-    /* arm swings against the same-side leg, elbow folds more as it comes forward */
-    const shF=-cyc(HIPK,f+0.04)*0.82*(0.5+0.5*sp)+8;
-    lag.sh[i]=spring(lag.sh[i],-shF*DEG,16+4*sp,dt);A.sh.rotation.x=lag.sh[i];
-    lag.shZ[i]=spring(lag.shZ[i],side*(0.04+0.05*Math.max(0,shF)/40),10,dt);A.sh.rotation.z=lag.shZ[i];
-    A.sh.rotation.y=side*0.22*Math.max(0,shF)/40;
-    const elF=70+0.55*Math.max(0,shF)+8*sp-6*Math.max(0,-shF)/30;
-    lag.el[i]=spring(lag.el[i],-elF*DEG,13,dt);A.el.rotation.x=lag.el[i];
-    A.wr.rotation.x=0.16*Math.sin((f-0.15)*Math.PI*2);A.wr.rotation.z=side*0.08;
+    /* arms: a relaxed, nearly straight swing when walking; a driving bent-elbow swing when running */
+    const shR=-cyc(HIPK,f+0.04)*0.82*(0.5+0.5*sp)+8,shW=-(14+10*sp)*Math.cos(2*Math.PI*f)+3;
+    const shF=lerp(shW,shR,R);
+    lag.sh[i]=spring(lag.sh[i],-shF*DEG,lerp(9,16+4*sp,R),dt);A.sh.rotation.x=lag.sh[i];
+    lag.shZ[i]=spring(lag.shZ[i],side*(lerp(0.03,0.04,R)+0.05*R*Math.max(0,shF)/40),10,dt);A.sh.rotation.z=lag.shZ[i];
+    A.sh.rotation.y=side*lerp(0.05,0.22,R)*Math.max(0,shF)/40;
+    const elR=70+0.55*Math.max(0,shF)+8*sp-6*Math.max(0,-shF)/30,elW=18+0.5*Math.max(0,shF);
+    lag.el[i]=spring(lag.el[i],-lerp(elW,elR,R)*DEG,lerp(8,13,R),dt);A.el.rotation.x=lag.el[i];
+    A.wr.rotation.x=lerp(0.06,0.16,R)*Math.sin((f-0.15)*Math.PI*2);A.wr.rotation.z=side*0.08;
     lag.sl[i]=spring(lag.sl[i],lag.sh[i],6,dt);A.sl.rotation.x=(lag.sl[i]-lag.sh[i])*0.9;
     const sgp=A.sg.attributes.position;
     for(let k=0;k<sgp.count;k++){const x=A.sb[k*3],y=A.sb[k*3+1],s=A.sb[k*3+2];
-      const a=(0.5+0.8*spN)*(0.3+0.7*s)+(A.sh.rotation.x)*0.6+0.08*Math.sin(S.t*9+s*4+i);
+      const a=(0.3+0.9*spN)*(0.3+0.7*s)+(A.sh.rotation.x)*0.6+0.08*Math.sin(S.t*9+s*4+i);
       sgp.setXYZ(k,x+Math.sin(S.t*7-s*5+i)*0.01*s,y*Math.cos(a),y*Math.sin(a));}
     sgp.needsUpdate=true;A.sg.computeVertexNormals();
   }
@@ -878,7 +892,7 @@ renderer.setAnimationLoop(()=>{
   const real=Math.min(clock.getDelta(),0.05),dt=S.paused?0:real;
   S.spS=(S.spS??S.speed)+(S.speed-(S.spS??S.speed))*(1-Math.exp(-real*2.2));const sp=S.spS;
   S.t+=dt;S.rt+=real;
-  const GP=gaitParams(sp),v=GP.v;
+  const GP=gaitParams(sp),v=GP.v;S.gaitV=v;
   S.phase+=dt*Math.PI*2/GP.T;S.dist+=v*dt;
   world.position.x-=v*dt;
   for(const ch of chunks){if(ch.position.x+world.position.x+L<-70){build(ch,ch.userData.idx+N);}}
