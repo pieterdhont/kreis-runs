@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kreis the Wanderer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* VOICE: playful modernist, a toy announced like a 1920s workshop exhibit
+   IDEA: a Bauhaus exhibition poster that holds a live figure on its plinth
+   PICTURE: the spinning 3D figure, framed by flat circle, triangle and square fields
+   COLOUR and TYPE: off-white ground, primary red, yellow and blue, black ink; Jost (geometric sans)
+   LAYOUT: poster stage on top, controls under it, parts legend as a grid of swatches */
+:root{color-scheme:light dark;--bg:light-dark(#f4f1ea,#121212);--ink:light-dark(#161616,#f4f1ea);--muted:light-dark(#55524c,#b7b2a8);--line:light-dark(#161616,#f4f1ea);
+--red:#d7261e;--yellow:#f2c200;--blue:#1f4fa3;--stage:light-dark(#ebe6db,#1c1c1c)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Jost,"Futura","Century Gothic",system-ui,sans-serif;overflow-x:clip}
+.band{padding:clamp(20px,3.5vw,48px) max(5vw,16px)}
+.wrap{max-width:1240px;margin:0 auto}
+header{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:12px 32px;padding-bottom:0}
+h1{font-size:clamp(34px,5.2vw,52px);line-height:1.05;margin:0;font-weight:700;text-wrap:balance}
+.lede{margin:6px 0 0;max-width:60ch;color:var(--muted);font-size:17px}
+.marks{display:flex;gap:10px;align-items:center;flex:none}
+.marks i{display:block;width:30px;height:30px}
+.m1{background:var(--yellow);clip-path:polygon(50% 0,100% 100%,0 100%)}.m2{background:var(--red)}.m3{background:var(--blue);border-radius:50%}
+.stage{position:relative;height:clamp(380px,62vh,620px);background:var(--stage);border:3px solid var(--line);overflow:hidden}
+.stage .f{position:absolute;pointer-events:none}
+.f.circle{width:56%;aspect-ratio:1;border-radius:50%;background:var(--yellow);right:-12%;top:-18%;opacity:.9}
+.f.square{width:22%;aspect-ratio:1;background:var(--blue);left:-4%;bottom:-6%}
+.f.bar{height:12px;width:38%;background:var(--red);left:6%;top:9%}
+canvas#c{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+canvas#c:active{cursor:grabbing}
+.hint{position:absolute;left:14px;bottom:12px;font-size:13px;color:var(--muted);background:var(--bg);padding:2px 8px;border:1.5px solid var(--line)}
+.status{position:absolute;inset:0;display:grid;place-items:center;font-weight:500;color:var(--muted)}
+.controls{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px;align-items:center}
+button{font:500 16px/1 Jost,system-ui,sans-serif;min-height:44px;padding:0 18px;border:2.5px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button:hover{background:var(--ink);color:var(--bg)}
+button:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+button[aria-pressed=true]{background:var(--red);border-color:var(--red);color:#fff}
+.sep{flex:1}
+h2{font-size:26px;line-height:1.1;margin:0 0 6px}
+.parts{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));gap:14px;margin-top:18px}
+.part{display:grid;grid-template-columns:44px minmax(0,1fr);gap:12px;align-items:center;border-top:2.5px solid var(--line);padding-top:12px}
+.sw{width:44px;height:44px;border:2px solid var(--line)}
+.part b{display:block;font-weight:700}
+.part span{color:var(--muted);font-size:15px}
+.spec{display:flex;flex-wrap:wrap;gap:8px 28px;margin-top:22px;font-size:15px;color:var(--muted)}
+.spec strong{color:var(--ink);font-weight:500;white-space:nowrap}
+footer{font-size:13px;color:var(--muted);padding-top:0}
+@media(max-width:600px){.marks{display:none}.stage{height:380px}.sep{display:none}}
+</style>
+</head>
+<body>
+<header class="band wrap">
+  <div>
+    <h1>Kreis the Wanderer</h1>
+    <p class="lede">An original adventurer built from the Bauhaus alphabet: one circle, one triangle, one square, and three primary colours.</p>
+  </div>
+  <div class="marks" aria-hidden="true"><i class="m1"></i><i class="m2"></i><i class="m3"></i></div>
+</header>
+
+<main class="band wrap">
+  <div class="stage" id="stage">
+    <div class="f circle"></div><div class="f square"></div><div class="f bar"></div>
+    <canvas id="c" aria-label="Interactive 3D view of the Kreis figure"></canvas>
+    <div class="status" id="status">Loading figure…</div>
+    <div class="hint">Drag to turn · scroll or pinch to zoom</div>
+  </div>
+  <div class="controls" role="group" aria-label="View controls">
+    <button id="v-front" type="button">Front</button>
+    <button id="v-side" type="button">Side</button>
+    <button id="v-back" type="button">Back</button>
+    <span class="sep"></span>
+    <button id="spin" type="button" aria-pressed="true">Spin</button>
+  </div>
+
+  <section style="margin-top:clamp(32px,5vw,56px)">
+    <h2>What it's made of</h2>
+    <p class="lede" style="margin:0">Every part is a plain geometric solid in flat matte colour. Turn it around: the cloak and sun disc are the back view's big shapes.</p>
+    <div class="parts" id="parts"></div>
+    <div class="spec">
+      <span>File <strong>kreis_the_wanderer.glb</strong></span>
+      <span>Parts <strong>24 named meshes</strong></span>
+      <span>Height <strong>1.08 m (scale freely)</strong></span>
+      <span>Pose <strong>A-pose, ready to rig</strong></span>
+      <span>Materials <strong>5 PBR colours</strong></span>
+    </div>
+  </section>
+</main>
+<footer class="band wrap">Original character design. Modelled in code from primitive solids.</footer>
+
+<script src="model.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+{
+const PARTS=[
+  ['#f4f1ea','Head','White sphere, two black dot eyes, a red brow bar'],
+  ['#f2c200','Torso','Yellow cylinder with a small blue circle on the chest'],
+  ['#1f4fa3','Arms and legs','Blue cylinders, arms held out in an A-pose'],
+  ['#d7261e','Cloak','Flat red triangle hanging from the shoulders'],
+  ['#f2c200','Sun disc','Yellow circle with a black rim and a blue centre'],
+  ['#161616','Joints and plinth','Black shoulders, collar, hips and square base']
+];
+document.getElementById('parts').innerHTML=PARTS.map(([c,n,d])=>`<div class="part"><div class="sw" style="background:${c}"></div><div><b>${n}</b><span>${d}</span></div></div>`).join('');
+
+const status=document.getElementById('status');
+try{
+  const THREE=await import('three');
+  const {OrbitControls}=await import('three/addons/controls/OrbitControls.js');
+  const {GLTFLoader}=await import('three/addons/loaders/GLTFLoader.js');
+  const stage=document.getElementById('stage'),canvas=document.getElementById('c');
+  const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true,preserveDrawingBuffer:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.outputColorSpace=THREE.SRGBColorSpace;
+  renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  const scene=new THREE.Scene();
+  const camera=new THREE.PerspectiveCamera(32,1,0.05,50);
+  scene.add(new THREE.HemisphereLight(0xffffff,0x8a8070,1.6));
+  const key=new THREE.DirectionalLight(0xffffff,2.2);key.position.set(2.2,3.5,2.8);key.castShadow=true;
+  key.shadow.mapSize.set(2048,2048);Object.assign(key.shadow.camera,{left:-1,right:1,top:1.5,bottom:-0.5});key.shadow.bias=-0.0005;
+  scene.add(key);
+  const rimL=new THREE.DirectionalLight(0xffffff,0.9);rimL.position.set(-2.5,1.5,-2.5);scene.add(rimL);
+  const ground=new THREE.Mesh(new THREE.PlaneGeometry(6,6),new THREE.ShadowMaterial({opacity:0.18}));
+  ground.rotation.x=-Math.PI/2;ground.position.y=-0.06;ground.receiveShadow=true;scene.add(ground);
+
+  const bin=Uint8Array.from(atob(window.KREIS_GLB),c=>c.charCodeAt(0)).buffer;
+  const gltf=await new Promise((res,rej)=>new GLTFLoader().parse(bin,'',res,rej));
+  const fig=gltf.scene;fig.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true}});
+  const pivot=new THREE.Group();pivot.add(fig);scene.add(pivot);
+
+  const target=new THREE.Vector3(0,0.48,0);
+  const controls=new OrbitControls(camera,canvas);
+  controls.target.copy(target);controls.enableDamping=true;controls.minDistance=1.2;controls.maxDistance=6;
+  controls.maxPolarAngle=Math.PI*0.62;
+  const DIST=3.1;
+  const view=a=>{camera.position.set(Math.sin(a)*DIST,0.95,Math.cos(a)*DIST);controls.update()};
+  view(0.55);
+
+  const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const spinBtn=document.getElementById('spin');
+  let spinning=!reduce;spinBtn.setAttribute('aria-pressed',String(spinning));
+  spinBtn.addEventListener('click',()=>{spinning=!spinning;spinBtn.setAttribute('aria-pressed',String(spinning))});
+  const go=(a)=>{pivot.rotation.y=0;spinning=false;spinBtn.setAttribute('aria-pressed','false');view(a)};
+  document.getElementById('v-front').addEventListener('click',()=>go(0));
+  document.getElementById('v-side').addEventListener('click',()=>go(Math.PI/2));
+  document.getElementById('v-back').addEventListener('click',()=>go(Math.PI));
+  controls.addEventListener('start',()=>{if(spinning){spinning=false;spinBtn.setAttribute('aria-pressed','false')}});
+
+  const resize=()=>{const w=stage.clientWidth,h=stage.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;
+    camera.fov=w<520?40:32;camera.updateProjectionMatrix()};
+  const ro=new ResizeObserver(resize);ro.observe(stage);resize();
+  status.remove();
+  const clock=new THREE.Clock();
+  renderer.setAnimationLoop(()=>{const dt=clock.getDelta();if(spinning)pivot.rotation.y+=dt*0.5;controls.update();renderer.render(scene,camera)});
+}catch(e){status.textContent='The 3D view could not load in this browser.';console.error(e)}
+}
+</script>
+</body>
+</html>

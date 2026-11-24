@@ -1,0 +1,6 @@
+node_modules/
+tools/node_modules/
+*.png
+kreis_body_preview.glb
+__pycache__/
+.DS_Store
