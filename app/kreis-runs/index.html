@@ -275,72 +275,187 @@ function tree(p,R,x,z){
 }
 const chunks=[];for(let i=0;i<N;i++){const g=new THREE.Group();build(g,i-1);world.add(g);chunks.push(g);}
 
-/* ---------- Kreis, articulated ---------- */
+/* ---------- Kreis: anime-Bauhaus, cel-shaded and articulated ---------- */
 const kreis=new THREE.Group();scene.add(kreis);
 const body=new THREE.Group();body.rotation.y=Math.PI/2;kreis.add(body);
-const add=(g,c,parent,x=0,y=0,z=0,r=0.6)=>{const m=new THREE.Mesh(g,M(c,r));m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m};
+const gradTex=(()=>{const d=new Uint8Array([132,132,132,255,186,186,186,255,232,232,232,255,255,255,255,255]);
+  const t=new THREE.DataTexture(d,4,1);t.minFilter=t.magFilter=THREE.NearestFilter;t.needsUpdate=true;return t})();
+const TM={};
+const T=(c,o={})=>{const k=c+JSON.stringify(o);return TM[k]||(TM[k]=new THREE.MeshToonMaterial(Object.assign({color:c,gradientMap:gradTex},o)))};
+/* ink outline: back faces pushed out along normals */
+const INK=new THREE.ShaderMaterial({uniforms:{t:{value:0.0032}},side:THREE.BackSide,
+  vertexShader:`uniform float t;void main(){vec3 p=position+normalize(normal)*t;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
+  fragmentShader:`void main(){gl_FragColor=vec4(0.07,0.06,0.07,1.);}`});
+function part(g,c,parent,x=0,y=0,z=0,o={}){
+  const m=new THREE.Mesh(g,o.mat||T(c));m.position.set(x,y,z);m.castShadow=o.cast!==false;m.receiveShadow=true;parent.add(m);
+  if(o.ink!==false){const ol=new THREE.Mesh(g,INK);m.add(ol);}return m;}
 const grp=(parent,x=0,y=0,z=0)=>{const g=new THREE.Group();g.position.set(x,y,z);parent.add(g);return g};
-const hips=grp(body,0,0.53,0);
-add(new THREE.BoxGeometry(0.25,0.07,0.15),C.black,hips);
-const torso=grp(hips,0,0.035,0);
-add(new THREE.CylinderGeometry(0.118,0.104,0.27,48),C.yellow,torso,0,0.14,0,0.55);
-add(new THREE.CylinderGeometry(0.045,0.045,0.012,40).rotateX(Math.PI/2),C.blue,torso,0,0.17,0.114);
-add(new THREE.CylinderGeometry(0.085,0.085,0.035,40),C.black,torso,0,0.29,0);
-const head=grp(torso,0,0.31,0);
-add(new THREE.SphereGeometry(0.13,48,32),C.white,head,0,0.13,0,0.45);
-for(const x of[0.045,-0.045])add(new THREE.SphereGeometry(0.019,20,12),C.black,head,x,0.14,0.118,0.4);
-add(new THREE.BoxGeometry(0.12,0.014,0.02),C.red,head,0,0.185,0.113);
-/* hair: faceted, flame-like blades swept back from the brow, tips flicking up */
-const hairMats=[0xf8e49a,0xf2c200,0xe7ac3c].map(c=>new THREE.MeshStandardMaterial({color:c,emissive:c,emissiveIntensity:0.16,roughness:0.5,flatShading:true,side:THREE.DoubleSide}));
-const UP=new THREE.Vector3(0,1,0);
-function lockGeo(p1,p2,w,th,n=16){
-  const curve=new THREE.QuadraticBezierCurve3(new THREE.Vector3(0,-0.012,0),p1,p2),pos=[],idx=[];
-  const T=new THREE.Vector3(),Sd=new THREE.Vector3(),Nn=new THREE.Vector3(),P=new THREE.Vector3();
-  for(let i=0;i<=n;i++){const t=i/n;curve.getPoint(t,P);curve.getTangent(t,T);
-    Sd.crossVectors(T,UP).normalize();Nn.crossVectors(Sd,T).normalize();
-    const tap=t<0.22?0.55+t*2.05:Math.pow((1-t)/0.78,1.15),ww=w*tap,tt=th*tap;
-    for(const[a,b]of[[1,0],[0,1],[-1,0],[0,-1]])pos.push(P.x+Sd.x*ww*b+Nn.x*tt*a,P.y+Sd.y*ww*b+Nn.y*tt*a,P.z+Sd.z*ww*b+Nn.z*tt*a);}
-  for(let i=0;i<n;i++)for(let k=0;k<4;k++){const a=i*4+k,b=i*4+(k+1)%4,c=a+4,d=b+4;idx.push(a,c,b,b,c,d);}
-  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setIndex(idx);g.computeVertexNormals();return g;
-}
-const hair=grp(head),locks=[];hair.scale.setScalar(1.15);hair.position.set(0,-0.02,-0.005);
-const HROWS=[{z:0.08,xs:[-0.055,-0.018,0.018,0.055],L:[0.27,0.31],up:0.1,w:0.034},
-  {z:0.03,xs:[-0.085,-0.042,0,0.042,0.085],L:[0.31,0.38],up:0.13,w:0.04},
-  {z:-0.03,xs:[-0.082,-0.03,0.03,0.082],L:[0.28,0.34],up:0.15,w:0.04},
-  {z:-0.085,xs:[-0.05,0,0.05],L:[0.2,0.25],up:0.11,w:0.036}];
+const V2=(x,y)=>new THREE.Vector2(x,y);
+function lathe(pts,seg=48,sz=1,steps=40,pleat=0,np=0){
+  if(pts[0][1]>pts.at(-1)[1])pts=pts.slice().reverse();
+  const curve=new THREE.SplineCurve(pts.map(([r,y])=>V2(r,y)));
+  const pp=curve.getPoints(steps).map(v=>V2(Math.max(0.0005,v.x),v.y));
+  const g=new THREE.LatheGeometry(pp,seg);
+  if(pleat){const p=g.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i),z=p.getZ(i),a=Math.atan2(x,z),k=1+pleat*Math.cos(a*np);p.setX(i,x*k);p.setZ(i,z*k);}}
+  if(sz!==1)g.scale(1,1,sz);g.computeVertexNormals();return g;}
+const profR=(pts,y)=>{const pp=new THREE.SplineCurve(pts.map(([r,yy])=>V2(r,yy))).getPoints(80);let b=pp[0];for(const p of pp)if(Math.abs(p.y-y)<Math.abs(b.y-y))b=p;return b.x;};
+const limb=(pts,sz=0.92)=>lathe([[0.0005,-pts[0][1]+0.012],...pts.map(([r,d])=>[r,-d]),[0.0005,-pts.at(-1)[1]-0.012]],32,sz,36);
+const blob=(sx,sy,sz,seg=32)=>{const g=new THREE.SphereGeometry(1,seg,Math.round(seg*0.6));g.scale(sx,sy,sz);return g};
+
+/* hips, pleated hakama top and obi */
+const hips=grp(body,0,0.69,0);
+part(lathe([[0.0005,-0.07],[0.075,-0.066],[0.112,-0.04],[0.122,0.0],[0.116,0.045],[0.0005,0.05]],48,0.78,30,0.015,14),C.blue,hips);
+part(lathe([[0.117,-0.008],[0.124,0.0],[0.125,0.035],[0.124,0.07],[0.117,0.078]],56,0.76,16),C.black,hips,0,0.0,0);
+{const r=new THREE.TorusGeometry(0.1255,0.0042,10,72);r.rotateX(Math.PI/2);r.scale(1,1,0.76);part(r,C.red,hips,0,0.035,0,{ink:false});}
+part(blob(0.04,0.03,0.022),C.black,hips,0,0.036,-0.1);
+/* obi tails: two ribbons that stream from the knot */
+const tails=[];
+for(const sx of[1,-1]){const g=new THREE.PlaneGeometry(1,1,2,16),p=g.attributes.position,b=[];
+  for(let i=0;i<p.count;i++){const s=0.5-p.getY(i),u=p.getX(i);const x=u*0.042*(1-0.25*s),y=-s*0.3;p.setXYZ(i,x,y,0);b.push(x,y,s,u);}
+  const m=new THREE.Mesh(g,T(C.black,{side:THREE.DoubleSide}));m.castShadow=true;m.position.set(sx*0.02,0.03,-0.115);m.rotation.z=sx*0.12;hips.add(m);
+  const tip=new THREE.Mesh(new THREE.CircleGeometry(0.011,20),T(C.red,{side:THREE.DoubleSide}));m.add(tip);
+  tails.push({m,g,b,sx,tip});}
+
+/* torso: fitted yellow wrap top */
+const torso=grp(hips,0,0.075,0);
+const TP=[[0.0005,-0.01],[0.1,-0.005],[0.102,0.04],[0.118,0.11],[0.138,0.19],[0.142,0.235],[0.13,0.275],[0.098,0.305],[0.06,0.322],[0.0005,0.33]],TSZ=0.72;
+part(lathe(TP,64,TSZ),C.yellow,torso);
+const onTorso=(x,y,off=0.003)=>{const r=profR(TP,y);return new THREE.Vector3(x,y,TSZ*Math.sqrt(Math.max(0,r*r-x*x))+off)};
+/* kimono wrap line, left over right */
+{const pts=[];for(let i=0;i<=16;i++){const t=i/16,y=0.312-t*0.29,x=0.042-t*0.11+0.02*Math.sin(t*Math.PI);pts.push(onTorso(x,y,0.003));}
+ part(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),48,0.0042,8),C.black,torso,0,0,0,{ink:false});}
+/* mandarin collar */
+part(lathe([[0.058,0.0],[0.061,0.004],[0.057,0.03],[0.052,0.036]],48,0.9,10),C.black,torso,0,0.296,0);
+/* mon: a blue family crest on the chest, ringed in white */
+{const c=onTorso(-0.055,0.2,0.0),n=new THREE.Vector3(-c.x/(TSZ*TSZ),0,c.z).normalize();
+ const mon=grp(torso,c.x,c.y,c.z);mon.lookAt(mon.position.clone().add(n));
+ part(new THREE.CylinderGeometry(0.022,0.022,0.004,40).rotateX(Math.PI/2),C.white,mon,0,0,0.004,{ink:false});
+ part(new THREE.CylinderGeometry(0.016,0.016,0.004,40).rotateX(Math.PI/2),C.blue,mon,0,0,0.0055,{ink:false});
+ part(new THREE.CylinderGeometry(0.0055,0.0055,0.004,24).rotateX(Math.PI/2),C.white,mon,0,0,0.007,{ink:false});}
+/* neck */
+part(lathe([[0.0005,0.0],[0.033,0.0],[0.03,0.03],[0.029,0.055],[0.0005,0.06]],32),C.white,torso,0,0.31,0,{ink:false});
+
+/* head: soft cranium tapering to a pointed chin */
+const head=grp(torso,0,0.36,0);
+const headGeo=(()=>{const g=new THREE.SphereGeometry(1,72,54),p=g.attributes.position;
+  for(let i=0;i<p.count;i++){let x=p.getX(i),y=p.getY(i),z=p.getZ(i);
+    if(y<0){const k=Math.pow(-y,1.25);x*=1-0.44*k;z*=1-0.16*k;y*=1+0.14*k;}
+    if(z<0)z*=1.07;p.setXYZ(i,x*0.09,y*0.1+0.1,z*0.094);}
+  g.computeVertexNormals();return g})();
+part(headGeo,C.white,head);
+/* face drawn onto the head surface */
+const probe=new THREE.Mesh(headGeo);probe.updateMatrixWorld();
+const ray=new THREE.Raycaster(),rO=new THREE.Vector3(),rD=new THREE.Vector3(0,0,-1),nrm=new THREE.Vector3();
+const decalMat=(c,k,basic)=>basic?new THREE.MeshBasicMaterial({color:c,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2-k,polygonOffsetUnits:-2-k})
+  :new THREE.MeshToonMaterial({color:c,gradientMap:gradTex,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2-k,polygonOffsetUnits:-2-k});
+function decal(shape,cx,cy,mirror,off,mat){
+  const g=new THREE.ShapeGeometry(shape,14),p=g.attributes.position;
+  for(let i=0;i<p.count;i++){const x=p.getX(i)*(mirror?-1:1)+cx,y=p.getY(i)+cy;rO.set(x,y,0.5);ray.set(rO,rD);
+    const h=ray.intersectObject(probe)[0];if(h){nrm.copy(h.face.normal);p.setXYZ(i,h.point.x+nrm.x*off,h.point.y+nrm.y*off,h.point.z+nrm.z*off);}else p.setXYZ(i,x,y,0.08);}
+  g.computeVertexNormals();const m=new THREE.Mesh(g,mat);head.add(m);return m;}
+const ell=(rx,ry,ox=0,oy=0)=>{const s=new THREE.Shape();s.absellipse(ox,oy,rx,ry,0,Math.PI*2,false,0);return s};
+const lash=new THREE.Shape();lash.moveTo(-0.019,0.002);
+lash.splineThru([V2(-0.01,0.0168),V2(0.004,0.0198),V2(0.016,0.015),V2(0.023,0.0078),V2(0.028,0.0125)]);
+lash.lineTo(0.0245,0.0035);lash.splineThru([V2(0.015,0.0108),V2(0.003,0.0142),V2(-0.009,0.0118),V2(-0.019,0.002)]);
+const lid=new THREE.Shape();lid.moveTo(-0.004,-0.0186);lid.quadraticCurveTo(0.006,-0.0208,0.0145,-0.0158);lid.lineTo(0.0138,-0.0146);lid.quadraticCurveTo(0.006,-0.0188,-0.004,-0.0172);
+const brow=new THREE.Shape();brow.moveTo(-0.017,0.031);brow.quadraticCurveTo(0.003,0.044,0.025,0.037);brow.lineTo(0.0245,0.0342);brow.quadraticCurveTo(0.003,0.0388,-0.0165,0.0262);
+const M_={iris:decalMat(0x7a1c14,1),irisLo:decalMat(0xd8563a,2),pupil:decalMat(0x101018,3),lash:decalMat(0x121214,2),lid:decalMat(0x3a2c2c,1),
+  hi:decalMat(0xffffff,5,true),brow:decalMat(C.red,1),mouth:decalMat(0x6a2a2a,1),nose:decalMat(0xd8cdc3,1)};
+for(const[sx,mir]of[[0.035,false],[-0.035,true]]){const cy=0.092;
+  decal(ell(0.0115,0.0158,0.001,-0.0012),sx,cy,mir,0.0011,M_.iris);
+  decal(ell(0.0082,0.0062,0.001,-0.0085),sx,cy,mir,0.0014,M_.irisLo);
+  decal(ell(0.0058,0.0092,0.0016,0.0004),sx,cy,mir,0.0017,M_.pupil);
+  decal(lash,sx,cy,mir,0.0019,M_.lash);decal(lid,sx,cy,mir,0.0013,M_.lid);
+  decal(ell(0.0035,0.0035,0.0048,0.0066),sx,cy,mir,0.0024,M_.hi);decal(ell(0.0017,0.0017,-0.0038,-0.0072),sx,cy,mir,0.0024,M_.hi);
+  decal(brow,sx,cy,mir,0.0013,M_.brow);}
+{const m=new THREE.Shape();m.moveTo(-0.0095,0.0005);m.quadraticCurveTo(0,-0.0028,0.0095,0.001);m.lineTo(0.0093,-0.0007);m.quadraticCurveTo(0,-0.0049,-0.0093,-0.0012);
+ decal(m,0,0.04,false,0.0012,M_.mouth);
+ const n=new THREE.Shape();n.moveTo(0.0005,0.007);n.lineTo(0.0035,-0.004);n.lineTo(-0.0012,-0.0046);decal(n,0,0.064,false,0.0012,M_.nose);}
+
+/* hair: a big flame crest of chunky, leaf-shaped locks, gold at the root to pale at the tip */
+const hairMat=new THREE.MeshToonMaterial({color:0xffffff,vertexColors:true,gradientMap:gradTex,side:THREE.DoubleSide});
+const HC=[new THREE.Color(0xc4241a),new THREE.Color(0xf07a1a),new THREE.Color(0xffd84a)];
+function lockGeo(p1,p2,p3,w,th,n=30,ring=10){
+  const curve=new THREE.CubicBezierCurve3(new THREE.Vector3(0,-0.012,0.004),p1,p2,p3),pos=[],col=[],idx=[];
+  const Tn=new THREE.Vector3(),Sd=new THREE.Vector3(),Nn=new THREE.Vector3(),P=new THREE.Vector3(),UP=new THREE.Vector3(0,1,0),cc=new THREE.Color();
+  for(let i=0;i<=n;i++){const t=i/n;curve.getPoint(t,P);curve.getTangent(t,Tn);
+    Sd.crossVectors(Tn,UP);if(Sd.lengthSq()<1e-6)Sd.set(1,0,0);Sd.normalize();Nn.crossVectors(Sd,Tn).normalize();
+    const tap=t<0.32?0.55+t*1.4:Math.pow((1-t)/0.68,1.1),ww=w*tap,tt=th*tap;
+    if(t<0.5)cc.copy(HC[0]).lerp(HC[1],t*2);else cc.copy(HC[1]).lerp(HC[2],(t-0.5)*2);
+    for(let k=0;k<ring;k++){const a=k/ring*Math.PI*2,cx=Math.cos(a),sy=Math.sin(a),lens=Math.sign(sy)*Math.pow(Math.abs(sy),0.7)*(0.7+0.3*cx*cx);
+      pos.push(P.x+Sd.x*ww*cx+Nn.x*tt*lens,P.y+Sd.y*ww*cx+Nn.y*tt*lens,P.z+Sd.z*ww*cx+Nn.z*tt*lens);col.push(cc.r,cc.g,cc.b);}}
+  for(let i=0;i<n;i++)for(let k=0;k<ring;k++){const a=i*ring+k,b=i*ring+(k+1)%ring,c=a+ring,d=b+ring;idx.push(a,c,b,b,c,d);}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+  g.setIndex(idx);g.computeVertexNormals();return g;}
+const hair=grp(head),locks=[];
+{const cap=new THREE.SphereGeometry(1,56,40);const cc=[];const pp=cap.attributes.position;for(let i=0;i<pp.count;i++){const y=pp.getY(i);const c=HC[0].clone().lerp(HC[1],Math.min(1,Math.max(0,(y+0.3)/1.1)));cc.push(c.r,c.g,c.b);}
+ cap.setAttribute('color',new THREE.Float32BufferAttribute(cc,3));cap.scale(0.093,0.066,0.1);
+ const m=part(cap,0,hair,0,0.166,-0.022,{mat:hairMat});m.rotation.x=-0.34;}
+const dn=new THREE.Vector3(0,-1,0);
+const scalpY=(x,z)=>{rO.set(x,0.6,z);ray.set(rO,dn);const h=ray.intersectObject(probe)[0];return h?h.point.y:0.17};
+const HROWS=[
+  {z:0.052,xs:[-0.044,-0.015,0.015,0.044],L:[0.2,0.25],w:0.05,kind:'rise'},
+  {z:0.012,xs:[-0.066,-0.033,0,0.033,0.066],L:[0.26,0.32],w:0.058,kind:'sweep'},
+  {z:-0.032,xs:[-0.064,-0.022,0.022,0.064],L:[0.24,0.3],w:0.056,kind:'sweep'},
+  {z:-0.072,xs:[-0.042,0,0.042],L:[0.18,0.22],w:0.05,kind:'back'}];
 let li=0;const hr=rng(77);
-HROWS.forEach((row,ri)=>row.xs.forEach(x=>{
-  const z=row.z,y=Math.sqrt(Math.max(0.0001,0.0169-x*x-z*z))*0.96,len=row.L[0]+hr()*(row.L[1]-row.L[0]);
-  const g=grp(hair,x,0.13+y,z);
-  const flare=x*1.6;
-  const m=new THREE.Mesh(lockGeo(new THREE.Vector3(x*0.5,0.035+hr()*0.02,-len*0.45),new THREE.Vector3(flare,row.up+hr()*0.04,-len),row.w*(0.9+hr()*0.25),0.017),hairMats[(li+ri)%3]);
-  m.castShadow=true;g.add(m);g.rotation.x=-0.12;locks.push({g,ph:hr()*6.3,f:5+hr()*3,base:-0.12});li++;}));
+HROWS.forEach(row=>row.xs.forEach(x=>{
+  const z=row.z,y=scalpY(x,z)-0.006,len=row.L[0]+hr()*(row.L[1]-row.L[0]),fl=x*1.6,j=hr();
+  const g=grp(hair,x,y,z);let a,b,c;
+  if(row.kind==='rise'){a=new THREE.Vector3(x*0.3,0.075,0.012);b=new THREE.Vector3(x*0.9,0.115,-len*0.42);c=new THREE.Vector3(fl,0.1+j*0.04,-len);}
+  else if(row.kind==='sweep'){a=new THREE.Vector3(x*0.4,0.05,-len*0.25);b=new THREE.Vector3(x*1.1,0.06,-len*0.62);c=new THREE.Vector3(fl,0.12+j*0.05,-len);}
+  else{a=new THREE.Vector3(x*0.4,0.01,-len*0.3);b=new THREE.Vector3(x*1.1,-0.02,-len*0.66);c=new THREE.Vector3(fl,0.05+j*0.04,-len);}
+  const m=part(lockGeo(a,b,c,row.w*(0.9+hr()*0.2),0.02),0,g,0,0,0,{mat:hairMat});
+  g.rotation.x=-0.1;locks.push({g,ph:hr()*6.3,f:4.5+hr()*3,base:-0.1});li++;}));
 for(const sx of[1,-1])for(const k of[0,1]){
-  const g=grp(hair,sx*0.112,0.15+k*0.035,0.02-k*0.03);
-  const m=new THREE.Mesh(lockGeo(new THREE.Vector3(sx*0.03,0.005,-0.11),new THREE.Vector3(sx*(0.06+k*0.02),0.05+k*0.03,-0.24+k*0.02),0.03,0.014),hairMats[(k+1)%3]);
-  m.castShadow=true;g.add(m);locks.push({g,ph:hr()*6.3,f:6+hr()*2,base:0});}
+  const g=grp(hair,sx*0.082,0.15+k*0.026,0.0-k*0.03);
+  part(lockGeo(new THREE.Vector3(sx*0.02,0.012,-0.07),new THREE.Vector3(sx*0.045,0.0,-0.15),new THREE.Vector3(sx*(0.06+k*0.015),0.05+k*0.03,-0.22+k*0.02),0.04,0.016),0,g,0,0,0,{mat:hairMat});
+  locks.push({g,ph:hr()*6.3,f:5.5+hr()*2,base:0});}
+
 /* sun disc on the back */
-add(new THREE.CylinderGeometry(0.17,0.17,0.02,72).rotateX(Math.PI/2),C.yellow,torso,0,0.27,-0.135,0.5);
-add(new THREE.TorusGeometry(0.17,0.011,12,72),C.black,torso,0,0.27,-0.135);
-add(new THREE.CylinderGeometry(0.055,0.055,0.01,40).rotateX(Math.PI/2),C.blue,torso,0,0.27,-0.148);
-/* cloak: a subdivided red triangle that bends back and ripples */
-const cg=new THREE.PlaneGeometry(1,1,6,12),cp=cg.attributes.position,cbase=[];
-for(let i=0;i<cp.count;i++){const s=0.5-cp.getY(i),x=cp.getX(i)*s*0.52,y=-s*0.56;cp.setXYZ(i,x,y,0);cbase.push(x,y,s);}
-const cloakMat=new THREE.MeshStandardMaterial({color:C.red,roughness:0.75,side:THREE.DoubleSide});
-const cloak=new THREE.Mesh(cg,cloakMat);cloak.castShadow=true;cloak.position.set(0,0.285,-0.165);torso.add(cloak);
-/* limbs */
-const cap=(r,l)=>new THREE.CapsuleGeometry(r,l,6,18).translate(0,-(l/2+r),0);
+{const d=lathe([[0.0005,0.009],[0.133,0.009],[0.146,0.004],[0.148,0.0],[0.146,-0.004],[0.133,-0.009],[0.0005,-0.009]],72,1,16);d.rotateX(Math.PI/2);
+ part(d,C.yellow,torso,0,0.24,-0.116);
+ part(new THREE.TorusGeometry(0.118,0.0045,10,72),C.black,torso,0,0.24,-0.126,{ink:false});
+ part(new THREE.CylinderGeometry(0.044,0.044,0.004,48).rotateX(Math.PI/2),C.blue,torso,0,0.24,-0.127,{ink:false});}
+
+/* cape */
+const cg=new THREE.PlaneGeometry(1,1,12,24),cp=cg.attributes.position,cbase=[];
+for(let i=0;i<cp.count;i++){const s=0.5-cp.getY(i),u=cp.getX(i)*2,w=0.28*Math.pow(s,0.7)*(1+0.12*s);
+  const x=u*w,y=-s*0.64-0.08*s*(1-u*u);cp.setXYZ(i,x,y,0);cbase.push(x,y,s,u);}
+const cloak=new THREE.Mesh(cg,T(C.red,{side:THREE.DoubleSide}));cloak.castShadow=true;cloak.position.set(0,0.312,-0.132);torso.add(cloak);
+
+/* limbs, sleeves, hakama legs, tabi and shoes */
 const arms=[],legs=[];
+const UPPER=[[0.022,-0.034],[0.036,-0.022],[0.04,0.0],[0.04,0.03],[0.036,0.09],[0.03,0.16],[0.027,0.2]];
+const FORE=[[0.028,0],[0.031,0.04],[0.025,0.12],[0.018,0.18]];
+const THIGH=[[0.058,0],[0.06,0.05],[0.052,0.16],[0.04,0.29],[0.035,0.32]];
+const SHIN=[[0.036,0],[0.042,0.06],[0.034,0.16],[0.022,0.28],[0.02,0.31]];
+const sleeveG=lathe([[0.045,0.02],[0.05,-0.03],[0.056,-0.08],[0.06,-0.12],[0.0595,-0.128]],40,0.92,20);
+const hakaUp=lathe([[0.064,0.03],[0.068,-0.04],[0.07,-0.18],[0.066,-0.3]],44,0.92,20,0.04,10);
+const hakaLo=lathe([[0.064,0.035],[0.066,-0.06],[0.074,-0.18],[0.084,-0.27],[0.0835,-0.282]],44,0.92,24,0.045,10);
 for(const sx of[1,-1]){
-  add(new THREE.SphereGeometry(0.05,24,16),C.black,torso,sx*0.15,0.245,0);
-  const spread=grp(torso,sx*0.15,0.245,0);spread.rotation.z=sx*0.14;
-  const sh=grp(spread);add(cap(0.036,0.1),C.blue,sh,0,0,0,0.55);
-  const el=grp(sh,0,-0.16,0);add(cap(0.033,0.09),C.blue,el,0,0,0,0.55);
-  add(new THREE.SphereGeometry(0.045,24,16),C.white,el,0,-0.165,0,0.45);
-  arms.push({sh,el});
-  const th=grp(hips,sx*0.075,-0.02,0);add(cap(0.045,0.17),C.blue,th,0,0,0,0.55);
-  const kn=grp(th,0,-0.235,0);add(cap(0.04,0.17),C.blue,kn,0,0,0,0.55);
-  const an=grp(kn,0,-0.23,0);const foot=add(new THREE.BoxGeometry(0.1,0.06,0.18).translate(0,-0.03,0.035),C.red,an,0,0,0,0.6);
+  const spread=grp(torso,sx*0.126,0.288,0);spread.rotation.z=sx*0.1;
+  const sh=grp(spread);part(limb(UPPER),C.blue,sh);
+  const sl=grp(sh,0,0,0);
+  part(sleeveG,C.yellow,sl,0,0,0,{mat:T(C.yellow,{side:THREE.FrontSide})});
+  part(sleeveG,C.red,sl,0,0,0,{mat:T(C.red,{side:THREE.BackSide}),ink:false});
+  {const r=new THREE.TorusGeometry(0.0598,0.0038,8,48);r.rotateX(Math.PI/2);r.scale(1,1,0.92);part(r,C.black,sl,0,-0.126,0,{ink:false});}
+  const el=grp(sh,0,-0.2,0);part(limb(FORE),C.blue,el);
+  const wr=grp(el,0,-0.185,0);
+  part(blob(0.023,0.036,0.029),C.white,wr,0,-0.03,0.004);
+  {const th=new THREE.CapsuleGeometry(0.009,0.02,4,12);th.rotateZ(sx*0.6);th.rotateX(-0.5);part(th,C.white,wr,sx*0.016,-0.02,0.018);}
+  arms.push({sh,el,wr,sl});
+  const th=grp(hips,sx*0.066,-0.03,0);part(limb(THIGH),C.blue,th);
+  part(hakaUp,C.blue,th,0,0,0,{mat:T(C.blue,{side:THREE.FrontSide})});part(hakaUp,0x17377a,th,0,0,0,{mat:T(0x17377a,{side:THREE.BackSide}),ink:false});
+  const kn=grp(th,0,-0.318,0);part(limb(SHIN),C.blue,kn);
+  part(hakaLo,C.blue,kn,0,0,0,{mat:T(C.blue,{side:THREE.FrontSide})});part(hakaLo,0x17377a,kn,0,0,0,{mat:T(0x17377a,{side:THREE.BackSide}),ink:false});
+  {const r=new THREE.TorusGeometry(0.084,0.0042,8,56);r.rotateX(Math.PI/2);r.scale(1,1,0.92);part(r,C.black,kn,0,-0.28,0,{ink:false});}
+  const an=grp(kn,0,-0.305,0);
+  part(lathe([[0.024,0.03],[0.026,0.0],[0.028,-0.015]],28,1,6),C.white,an,0,0,0,{ink:false});
+  const fg=new THREE.SphereGeometry(1,40,20),fp=fg.attributes.position;
+  for(let i=0;i<fp.count;i++){let x=fp.getX(i),y=fp.getY(i),z=fp.getZ(i);if(y<-0.5)y=-0.5;if(z>0){z*=1.18;x*=1-0.35*z/1.18;}fp.setXYZ(i,x*0.04,y*0.032,z*0.1);}
+  fg.translate(0,-0.022,0.045);fg.computeVertexNormals();
+  const foot=part(fg,C.red,an);
   legs.push({th,kn,an,foot});
 }
 
@@ -419,41 +534,61 @@ function applyLight(k){
   const dd=lv('discDir',k);sunGrp.position.copy(camera.position).addScaledVector(dd,200);sunGrp.lookAt(camera.position);
 }
 
-/* ---------- run cycle ---------- */
-const foots=[new THREE.Vector3(0,-0.06,-0.055),new THREE.Vector3(0,-0.06,0.125)];
+/* ---------- run cycle: eased curves, follow-through and counter-motion ---------- */
+const foots=[new THREE.Vector3(0,-0.038,-0.05),new THREE.Vector3(0,-0.038,0.15)];
+const lag={th:[0,0],sh:[0,0],el:[0,0],sl:[0,0]};
 function pose(p,sp,dt){
-  const lean=0.12+0.1*sp;
+  const lean=0.1+0.1*sp,amp=0.8+0.3*sp;
   for(let i=0;i<2;i++){
     const q=p+i*Math.PI,s=Math.sin(q),c=Math.cos(q),L_=legs[i],A=arms[i];
-    const thigh=-0.72*s*(0.75+0.3*sp);
-    L_.th.rotation.x=thigh-0.05;
-    const knee=0.18+1.25*Math.pow(Math.max(0,c),1.4)*(0.8+0.25*sp)+0.15*Math.max(0,-c);
+    /* thigh: slightly asymmetric swing, quicker forward drive */
+    const thigh=-0.74*Math.sin(q+0.18*Math.sin(q))*amp;
+    L_.th.rotation.x=thigh-0.04;
+    /* knee: big fold in mid-swing, a soft give as the foot loads */
+    const knee=0.1+1.4*Math.pow(Math.max(0,Math.cos(q-0.25)),1.7)*(0.85+0.2*sp)+0.22*Math.pow(Math.max(0,-c),2);
     L_.kn.rotation.x=knee;
-    L_.an.rotation.x=-(thigh+knee)*0.55+0.08*s;
-    A.sh.rotation.x=0.65*s*(0.8+0.3*sp)+0.1;
-    A.el.rotation.x=-1.15-0.25*Math.max(0,-s);
+    /* ankle: toe up in swing, push off at the back */
+    L_.an.rotation.x=-(thigh+knee)*0.62+0.22*Math.max(0,Math.sin(q-2.1))-0.1*Math.max(0,s);
+    /* arms swing opposite, elbows breathing with the stride, wrists trailing */
+    const shT=0.62*s*amp+0.12;
+    lag.sh[i]+=(shT-lag.sh[i])*(dt>0?1-Math.exp(-dt*22):1);
+    A.sh.rotation.x=lag.sh[i];
+    const elT=-1.25-0.22*Math.max(0,-s)+0.12*s;
+    lag.el[i]+=(elT-lag.el[i])*(dt>0?1-Math.exp(-dt*16):1);
+    A.el.rotation.x=lag.el[i];
+    A.wr.rotation.x=0.18*Math.sin(q-0.9);A.wr.rotation.z=(i?-1:1)*0.1;
+    lag.sl[i]+=(shT-lag.sl[i])*(dt>0?1-Math.exp(-dt*7):1);
+    A.sl.rotation.x=(lag.sl[i]-lag.sh[i])*0.9;A.sl.rotation.z=(i?1:-1)*0.04*Math.abs(Math.sin(q));
   }
-  hips.rotation.y=-0.09*Math.sin(p);
-  torso.rotation.x=lean;torso.rotation.y=0.16*Math.sin(p);
-  head.rotation.x=-lean*0.7;head.rotation.y=-0.12*Math.sin(p);
+  hips.rotation.y=-0.1*Math.sin(p);hips.rotation.z=0.045*Math.cos(p);
+  torso.rotation.x=lean;torso.rotation.y=0.15*Math.sin(p);torso.rotation.z=-0.035*Math.cos(p);
+  head.rotation.x=-lean*0.75+0.025*Math.sin(2*p);head.rotation.y=-0.11*Math.sin(p);head.rotation.z=-0.02*Math.cos(p);
   kreis.position.y=0;kreis.updateMatrixWorld(true);
   let min=1e9,low=0;
   legs.forEach((l,i)=>foots.forEach(f=>{l.foot.localToWorld(tmp.copy(f));if(tmp.y<min){min=tmp.y;low=i}}));
-  kreis.position.y=-min+0.035*Math.abs(Math.sin(p))*sp;
-  if(dt>0&&low!==S.low){if(S.low!==-1){legs[low].foot.localToWorld(tmp.set(0,-0.06,0.03));puff(tmp)}S.low=low;}
-  const spN=Math.min(1,sp/1.6);
-  const a0=0.22+0.62*spN;
+  kreis.position.y=-min+0.04*Math.pow(Math.abs(Math.sin(p)),1.3)*sp;
+  if(dt>0&&low!==S.low){if(S.low!==-1){legs[low].foot.localToWorld(tmp.set(0,-0.038,0.04));puff(tmp)}S.low=low;}
+  /* cape: blown back with speed, edges cupping, a travelling ripple */
+  const spN=Math.min(1,sp/1.6),a0=0.2+0.6*spN;
   for(let i=0;i<cp.count;i++){
-    const x=cbase[i*3],y=cbase[i*3+1],s=cbase[i*3+2];
-    const a=a0*(0.35+0.65*s)+0.05*Math.sin(S.t*7+s*3);
-    const wave=Math.sin(S.t*11-s*7+x*9)*0.04*s*(0.4+sp*0.5);
-    cp.setXYZ(i,x*(1+0.12*s),y*Math.cos(a),y*Math.sin(a)+wave-0.01*s);
+    const x=cbase[i*4],y=cbase[i*4+1],s=cbase[i*4+2],u=cbase[i*4+3];
+    const a=a0*(0.3+0.7*s)+0.05*Math.sin(S.t*6.5+s*3);
+    const wave=Math.sin(S.t*10-s*6.5+u*2.2)*0.032*s*(0.4+0.6*spN)+Math.sin(S.t*6.1-s*4+u*4.5)*0.012*s;
+    const cup=-Math.abs(u)*u*0.0+(-u*u*0.045*s);
+    cp.setXYZ(i,x*(1+0.1*s)+Math.sin(S.t*4.2-s*3)*0.012*s,y*Math.cos(a),y*Math.sin(a)+wave+cup-0.008*s);
   }
   cp.needsUpdate=true;cg.computeVertexNormals();
-  cloak.rotation.y=0.42*Math.sin(S.t*3.3)*(0.5+0.5*spN);cloak.rotation.z=0.12*Math.sin(S.t*2.1);
+  for(const tl of tails){const tp=tl.g.attributes.position;
+    for(let i=0;i<tp.count;i++){const x=tl.b[i*4],y=tl.b[i*4+1],s=tl.b[i*4+2];
+      const a=(0.25+0.65*spN)*(0.3+0.7*s)+0.06*Math.sin(S.t*7+s*3+tl.sx);
+      const w=Math.sin(S.t*12-s*7+tl.sx*1.3)*0.03*s*(0.4+0.6*spN);
+      tp.setXYZ(i,x+Math.sin(S.t*5-s*4+tl.sx)*0.012*s,y*Math.cos(a),y*Math.sin(a)+w);}
+    tp.needsUpdate=true;tl.g.computeVertexNormals();
+    tl.tip.position.set(Math.sin(S.t*5-4+tl.sx)*0.012,-0.3*Math.cos((0.25+0.65*spN)+0.06*Math.sin(S.t*7+3+tl.sx)),-0.3*Math.sin((0.25+0.65*spN)+0.06*Math.sin(S.t*7+3+tl.sx))+0.002);}
+  cloak.rotation.y=0.3*Math.sin(S.t*3.1)*(0.5+0.5*spN);cloak.rotation.z=0.08*Math.sin(S.t*2.1);
   /* hair streams flatter at speed and flutters in the wind */
-  for(const l of locks){l.g.rotation.x=l.base-0.14*spN+Math.sin(S.t*l.f+l.ph)*0.06*(0.4+0.8*spN);
-    l.g.rotation.y=Math.sin(S.t*l.f*0.7+l.ph*1.7)*0.05*(0.5+spN);}
+  for(const l of locks){l.g.rotation.x=l.base-0.14*spN+Math.sin(S.t*l.f+l.ph)*0.055*(0.4+0.8*spN);
+    l.g.rotation.y=Math.sin(S.t*l.f*0.7+l.ph*1.7)*0.045*(0.5+spN);}
 }
 
 /* ---------- camera angles ---------- */
@@ -504,7 +639,7 @@ function rig(dt,real){
     const u=Math.sin(Math.PI*Math.min(1,dz.p)),e=u*u*(3-2*u),f1=Math.min(82,f*2.9),nf=f+(f1-f)*e;
     Z*=Math.tan(THREE.MathUtils.degToRad(f)/2)/Math.tan(THREE.MathUtils.degToRad(nf)/2);f=nf;}
   const base=A.off.length(),minD=0.12/Math.tan(THREE.MathUtils.degToRad(f)/2),dist=Math.max(minD,base*Z);
-  head.getWorldPosition(hw);hw.y+=0.12;
+  head.getWorldPosition(hw);hw.y+=0.1;
   const c=1-sstep(0.7,3.6,dist);
   wantLook.lerpVectors(A.tgt,hw,c);
   dirV.copy(A.off).normalize();
