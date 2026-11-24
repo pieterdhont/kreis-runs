@@ -316,10 +316,10 @@ const blob=(sx,sy,sz,seg=32)=>{const g=new THREE.SphereGeometry(1,seg,Math.round
 
 /* hips, pleated hakama top and obi */
 const hips=grp(body,0,0.74,0);
-part(lathe([[0.0005,-0.07],[0.075,-0.066],[0.112,-0.04],[0.122,0.0],[0.116,0.045],[0.0005,0.05]],48,0.78,30),C.blue,hips);
-part(lathe([[0.117,-0.008],[0.124,0.0],[0.125,0.035],[0.124,0.07],[0.117,0.078]],56,0.76,16),C.black,hips,0,0.0,0);
-{const r=new THREE.TorusGeometry(0.1255,0.0042,10,72);r.rotateX(Math.PI/2);r.scale(1,1,0.76);part(r,C.red,hips,0,0.035,0,{ink:false});}
-part(blob(0.04,0.03,0.022),C.black,hips,0,0.036,-0.1);
+part(gradY(lathe([[0.0005,-0.075],[0.07,-0.07],[0.104,-0.045],[0.112,-0.005],[0.104,0.04],[0.092,0.075],[0.0005,0.08]],64,0.78,40),0x1d4a9e,0x2f63c6,-0.075,0.06),0,hips,0,0,0,{mat:VC()});
+part(lathe([[0.112,0.0],[0.117,0.006],[0.114,0.03],[0.107,0.052],[0.101,0.058]],64,0.78,20),C.black,hips,0,0.026,0);
+{const r=new THREE.TorusGeometry(0.1152,0.0036,10,72);r.rotateX(Math.PI/2);r.scale(1,1,0.78);part(r,C.red,hips,0,0.052,0,{ink:false});}
+part(blob(0.034,0.026,0.02),C.black,hips,0,0.04,-0.088);
 /* obi tails: two ribbons that stream from the knot */
 const tails=[];
 for(const sx of[1,-1]){const g=new THREE.PlaneGeometry(1,1,2,16),p=g.attributes.position,b=[];
@@ -328,10 +328,12 @@ for(const sx of[1,-1]){const g=new THREE.PlaneGeometry(1,1,2,16),p=g.attributes.
   const tip=new THREE.Mesh(new THREE.CircleGeometry(0.011,20),T(C.red,{side:THREE.DoubleSide}));m.add(tip);
   tails.push({m,g,b,sx,tip});}
 
-/* torso: fitted yellow wrap top */
-const torso=grp(hips,0,0.075,0);
-const TP=[[0.0005,-0.01],[0.1,-0.005],[0.102,0.04],[0.118,0.11],[0.138,0.19],[0.142,0.235],[0.13,0.275],[0.098,0.305],[0.06,0.322],[0.0005,0.33]],TSZ=0.72;
-part(gradY(lathe(TP,72,TSZ),0xe2a400,0xffd94a,0.0,0.3),0,torso,0,0,0,{mat:VC()});
+/* torso: one continuous skinned body (built after the limb helpers), bent by waist, chest and neck bones */
+const waistB=new THREE.Bone();waistB.position.set(0,0.075,0);hips.add(waistB);
+const chestB=new THREE.Bone();chestB.position.set(0,0.15,0);waistB.add(chestB);
+const neckB=new THREE.Bone();neckB.position.set(0,0.16,0);chestB.add(neckB);
+const torso=grp(chestB,0,-0.15,0);
+const TP=[[0.0005,-0.012],[0.09,-0.006],[0.087,0.04],[0.098,0.1],[0.115,0.165],[0.122,0.21],[0.12,0.25],[0.106,0.285],[0.074,0.308],[0.04,0.322],[0.032,0.34],[0.03,0.37],[0.0005,0.385]],TSZ=0.72;
 const onTorso=(x,y,off=0.003)=>{const r=profR(TP,y);return new THREE.Vector3(x,y,TSZ*Math.sqrt(Math.max(0,r*r-x*x))+off)};
 /* kimono wrap line, left over right */
 {const pts=[];for(let i=0;i<=16;i++){const t=i/16,y=0.312-t*0.29,x=0.042-t*0.11+0.02*Math.sin(t*Math.PI);pts.push(onTorso(x,y,0.003));}
@@ -344,11 +346,9 @@ part(lathe([[0.058,0.0],[0.061,0.004],[0.057,0.03],[0.052,0.036]],48,0.9,10),C.b
  part(new THREE.CylinderGeometry(0.022,0.022,0.004,40).rotateX(Math.PI/2),C.white,mon,0,0,0.004,{ink:false});
  part(new THREE.CylinderGeometry(0.016,0.016,0.004,40).rotateX(Math.PI/2),C.blue,mon,0,0,0.0055,{ink:false});
  part(new THREE.CylinderGeometry(0.0055,0.0055,0.004,24).rotateX(Math.PI/2),C.white,mon,0,0,0.007,{ink:false});}
-/* neck */
-part(lathe([[0.0005,0.0],[0.033,0.0],[0.03,0.03],[0.029,0.055],[0.0005,0.06]],32),C.white,torso,0,0.31,0,{ink:false});
 
 /* head: soft cranium tapering to a pointed chin */
-const head=grp(torso,0,0.352,0);head.scale.setScalar(0.9);
+const head=grp(neckB,0,0.042,0);head.scale.setScalar(0.9);
 const headGeo=(()=>{const g=new THREE.SphereGeometry(1,72,54),p=g.attributes.position;
   for(let i=0;i<p.count;i++){let x=p.getX(i),y=p.getY(i),z=p.getZ(i);
     if(y<0){const k=Math.pow(-y,1.25);x*=1-0.44*k;z*=1-0.16*k;y*=1+0.14*k;}
@@ -478,10 +478,10 @@ function skinned(g,mat,sk,parent,pos,ink=true){
   return m;}
 const tubeG=(pts,seg=40,sz=0.92,steps=70,pleat=0,np=0)=>lathe(pts.map(([r,d])=>[r,-d]),seg,sz,steps,pleat,np);
 const ARM={el:0.2,wr:0.385},LEG={kn:0.34,an:0.67,hem:0.645};
-const armG=gradY(skinAttr(tubeG([[0.0005,-0.046],[0.022,-0.036],[0.036,-0.022],[0.04,0],[0.04,0.03],[0.036,0.09],[0.031,0.16],[0.029,0.2],[0.031,0.24],[0.025,0.32],[0.019,0.375],[0.0005,0.392]],48),[ARM.el,ARM.wr],[0.04,0.014]),0x173f8f,0x2c62c4,-0.39,0.0);
+const armG=gradY(skinAttr(tubeG([[0.0005,-0.03],[0.024,-0.024],[0.035,-0.014],[0.04,0],[0.04,0.03],[0.036,0.09],[0.031,0.16],[0.029,0.2],[0.031,0.24],[0.025,0.32],[0.019,0.375],[0.0005,0.392]],48),[ARM.el,ARM.wr],[0.04,0.014]),0x173f8f,0x2c62c4,-0.39,0.0);
 const legG=gradY(skinAttr(tubeG([[0.0005,-0.012],[0.058,0],[0.06,0.05],[0.052,0.17],[0.04,0.31],[0.037,0.34],[0.042,0.4],[0.035,0.51],[0.023,0.63],[0.02,0.665],[0.0005,0.68]],48),[LEG.kn,LEG.an],[0.045,0.016]),0x173f8f,0x2a5cbd,-0.68,0.0);
 const hakaG=gradY(skinAttr(tubeG([[0.064,-0.03],[0.068,0.04],[0.07,0.18],[0.068,0.3],[0.066,0.36],[0.069,0.46],[0.076,0.56],[0.084,0.632],[0.0835,LEG.hem]],64,0.92,80,0.028,10),[LEG.kn,LEG.an],[0.08,0.01]),0x153a86,0x2f63c6,-0.645,0.03);
-const sleeveG=gradY(lathe([[0.0005,0.058],[0.024,0.053],[0.038,0.04],[0.045,0.015],[0.047,-0.02],[0.05,-0.08],[0.054,-0.13],[0.057,-0.165],[0.0565,-0.172]],56,0.9,36),0xe7a300,0xffd94a,-0.17,0.05);
+const sleeveG=gradY(lathe([[0.0005,0.05],[0.026,0.045],[0.04,0.03],[0.045,0.008],[0.046,-0.03],[0.047,-0.08],[0.049,-0.12],[0.05,-0.14],[0.0495,-0.146]],56,0.9,36),0xe7a300,0xffd94a,-0.146,0.05);
 /* shoe: a heel block and a pointed toe cap that bends at the ball of the foot */
 const shoe=(sx,sy,sz,stretch)=>{const g=new THREE.SphereGeometry(1,36,18),p=g.attributes.position;
   for(let i=0;i<p.count;i++){let x=p.getX(i),y=p.getY(i),z=p.getZ(i);if(y<-0.5)y=-0.5;if(z>0&&stretch){z*=stretch;x*=1-0.42*z/stretch;}p.setXYZ(i,x*sx,y*sy,z*sz);}
@@ -497,12 +497,15 @@ for(const sx of[1,-1]){
   const sl=grp(sh,0,0,0);
   part(sleeveG,0,sl,0,0,0,{mat:VC({side:THREE.FrontSide})});
   part(sleeveG,C.red,sl,0,0,0,{mat:T(C.red,{side:THREE.BackSide}),ink:false});
-  {const r=new THREE.TorusGeometry(0.0568,0.0036,8,48);r.rotateX(Math.PI/2);r.scale(1,1,0.9);part(r,C.black,sl,0,-0.17,0,{ink:false});}
+  {const r=new THREE.TorusGeometry(0.0498,0.0034,8,48);r.rotateX(Math.PI/2);r.scale(1,1,0.9);part(r,C.black,sl,0,-0.144,0,{ink:false});}
   /* sleeve streamer: a red ribbon trailing from the cuff */
   const sg=new THREE.PlaneGeometry(1,1,1,10),sp=sg.attributes.position,sb=[];
   for(let i=0;i<sp.count;i++){const s=0.5-sp.getY(i),u=sp.getX(i);const x=u*0.03*(1-0.6*s),y=-s*0.16;sp.setXYZ(i,x,y,0);sb.push(x,y,s);}
-  const streamer=new THREE.Mesh(sg,T(C.red,{side:THREE.DoubleSide}));streamer.castShadow=true;streamer.position.set(0,-0.17,-0.05);streamer.rotation.y=Math.PI/2*0;sl.add(streamer);
-  part(blob(0.023,0.036,0.029),C.white,wr,0,-0.03,0.004);
+  const streamer=new THREE.Mesh(sg,T(C.red,{side:THREE.DoubleSide}));streamer.castShadow=true;streamer.position.set(0,-0.144,-0.044);streamer.rotation.y=Math.PI/2*0;sl.add(streamer);
+  part((()=>{const g=new THREE.SphereGeometry(1,40,28),q=g.attributes.position;
+    for(let k=0;k<q.count;k++){let x=q.getX(k),y=q.getY(k),z=q.getZ(k);const t=(1-y)/2,w=0.74+0.34*Math.sin(Math.min(1,t*1.25)*Math.PI*0.6);
+      x*=w;z*=0.8+0.3*t;if(z>0&&y<0)z*=1-0.22*(-y);q.setXYZ(k,x*0.022,y*0.038,z*0.028);}
+    g.computeVertexNormals();return g})(),C.white,wr,0,-0.032,0.004);
   {const th=new THREE.CapsuleGeometry(0.009,0.02,4,12);th.rotateZ(sx*0.6);th.rotateX(-0.5);part(th,C.white,wr,sx*0.016,-0.02,0.018);}
   arms.push({sh,el,wr,sl,streamer,sg,sb});
   const hp=new THREE.Vector3(sx*0.066,-0.03,0);
@@ -518,6 +521,19 @@ for(const sx of[1,-1]){
   const toeJ=grp(an,0,-0.024,0.07);const toe=part(toeG,C.red,toeJ);
   legs.push({th,kn,an,heel,toeJ,toe});
 }
+
+/* the continuous torso: waist, chest, sculpted shoulders and neck in one smooth surface */
+{const g=lathe(TP,80,1,140),q=g.attributes.position;
+ for(let i=0;i<q.count;i++){let x=q.getX(i),y=q.getY(i),z=q.getZ(i);
+   const zs=TSZ+(1-TSZ)*smo(0.3,0.335,y),r=Math.hypot(x,z)||1e-6;z*=zs;
+   x*=1+0.22*Math.exp(-(((y-0.272)/0.03)**2))*Math.pow(Math.abs(x)/r,2);q.setXYZ(i,x,y,z);}
+ g.computeVertexNormals();
+ const a=new Float32Array(q.count*3),si=[],sw=[],Y0=new THREE.Color(0xe2a400),Y1=new THREE.Color(0xffd94a),W=new THREE.Color(C.white),Q=new THREE.Color();
+ for(let i=0;i<q.count;i++){const y=q.getY(i);Q.copy(Y0).lerp(Y1,smo(0,0.28,y)).lerp(W,smo(0.304,0.316,y));a[i*3]=Q.r;a[i*3+1]=Q.g;a[i*3+2]=Q.b;
+   if(y<0.24){const w=smo(0.05,0.18,y);si.push(0,1,0,0);sw.push(1-w,w,0,0);}else{const w=smo(0.3,0.338,y);si.push(1,2,0,0);sw.push(1-w,w,0,0);}}
+ g.setAttribute('color',new THREE.BufferAttribute(a,3));
+ g.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(si,4));g.setAttribute('skinWeight',new THREE.Float32BufferAttribute(sw,4));
+ skinned(g,VC(),new THREE.Skeleton([waistB,chestB,neckB]),hips,new THREE.Vector3(0,0.075,0));}
 
 /* ---------- dust puffs at foot strikes ---------- */
 const puffs=[];for(let i=0;i<14;i++){const m=new THREE.Mesh(G.sph,new THREE.MeshStandardMaterial({color:0xe9dfc9,roughness:1,transparent:true,opacity:0,depthWrite:false}));m.visible=false;world.add(m);puffs.push({m,life:0});}
@@ -642,8 +658,8 @@ function pose(p,sp,dt){
   }
   hips.rotation.y=-0.11*Math.sin(pp);hips.rotation.z=0.05*Math.cos(pp);hips.rotation.x=0.04*sp;
   const lean=0.09+0.1*sp;
-  torso.rotation.x=lean+0.02*Math.sin(2*pp);torso.rotation.y=0.16*Math.sin(pp);torso.rotation.z=-0.03*Math.cos(pp);
-  head.rotation.x=-lean*0.8-0.02*Math.sin(2*pp);head.rotation.y=-0.12*Math.sin(pp);head.rotation.z=-0.015*Math.cos(pp);
+  {const tx=lean+0.02*Math.sin(2*pp),ty=0.16*Math.sin(pp),tz=-0.03*Math.cos(pp);waistB.rotation.set(tx*0.42,ty*0.38,tz*0.5);chestB.rotation.set(tx*0.58,ty*0.62,tz*0.5);}
+  {const hx=-lean*0.8-0.02*Math.sin(2*pp),hy=-0.12*Math.sin(pp),hz=-0.015*Math.cos(pp);neckB.rotation.set(hx*0.45,hy*0.45,hz*0.5);head.rotation.set(hx*0.55,hy*0.55,hz*0.5);}
   /* plant the lowest contact point on the ground; lift slightly in each flight phase */
   kreis.position.y=0;kreis.updateMatrixWorld(true);
   let min=1e9,low=0,lowPt=null;
@@ -651,7 +667,7 @@ function pose(p,sp,dt){
   const f2=ph%0.5,flight=0.032*sp*Math.exp(-(((f2-0.44)/0.05)**2));
   const yT=-min+flight;S.ry=(S.ry===undefined||dt===0&&S.ryInit!==true)?(S.ryInit=true,yT):spring(S.ry,yT,26,dt);
   kreis.position.y=S.ry;
-  torso.scale.set(1,1+0.006*Math.sin(p*2+0.6),1+0.014*Math.sin(p*2+0.6));
+  chestB.scale.set(1,1,1+0.012*Math.sin(p*2+0.6));
   if(dt>0&&low!==S.low){if(S.low!==-1&&lowPt)puff(lowPt);S.low=low;}
   /* cape: blown back with speed, edges cupping, travelling ripples, split tails flicking */
   const a0=0.2+0.6*spN;
