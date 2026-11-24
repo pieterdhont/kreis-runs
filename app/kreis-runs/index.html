@@ -154,7 +154,7 @@ footer{font-size:13px;color:var(--muted);padding-top:0}
 
   <section class="notes">
     <div><b>The runner</b><p>One sculpted body on a 19-bone skeleton, moved by physics across a full range of speeds. From about 0.8 m/s he walks: both feet touch the ground together for a moment and his body rises over each step. Around 1.6 m/s he blends into a jog and then a run. Above 3.2 m/s he moves into a sprint, reaching a full sprint at 10 m/s: up to about 5.4 steps a second, ground contact under a tenth of a second, landings on the ball of the foot with the heel never touching, high heel recovery, big knee drive and a wide, powerful arm swing. Each gait's step rate and ground-contact time come from measured human data scaled to his size. Planted feet never slide: each foot lands on the heel, rolls flat and pushes off from the toes, landing more on the forefoot and pushing off harder the faster he goes. He leans into acceleration and back when braking, each landing sends a small jolt up his body, and his pelvis turns and dips against his shoulders with every stride. His torso follows his limbs: the pelvis turns with his thighs and the chest with his arms, in true opposition. He sways over the loaded leg, his spine flexes on each landing and extends through the push-off, his shoulders move forward and back with each arm, and his breathing deepens with effort while his head stays steady.</p></div>
-    <div><b>His look</b><p>A Japanese-meets-Bauhaus hero, cel-shaded with ink outlines. He has a flame-coloured crest of hair and a wrap top with a family crest. A black obi with streaming tails and red-lined sleeves with ribbons complete the outfit, along with pleated hakama and a cape split into two tails. He blinks, and his eyes narrow, brows set and mouth opens as he runs faster. The cape, obi tails and sleeve ribbons are simulated cloth: pinned to his body, pulled by gravity and pushed by the air streaming past at his running speed. They drape at a walk, ripple in his wake at a run and flap out straight at a full sprint, and they bump against his back, sun disc, arms and legs instead of passing through.</p></div>
+    <div><b>His look</b><p>A Japanese-meets-Bauhaus hero, cel-shaded with ink outlines. He has a flame-coloured crest of hair and a wrap top with a family crest. A black obi with streaming tails and red-lined sleeves with ribbons complete the outfit, along with pleated hakama and a cape split into two tails. He blinks, and his eyes narrow, brows set and mouth opens as he runs faster. His hair is simulated too: each lock is a strand held to its styled shape, stiff at the root and soft at the tip. The same air that moves the cloth pushes on it, so it lifts and sways at a walk, streams back at a run and flattens out at a full sprint, without passing through his head. The cape, obi tails and sleeve ribbons are simulated cloth: pinned to his body, pulled by gravity and pushed by the air streaming past at his running speed. They drape at a walk, ripple in his wake at a run and flap out straight at a full sprint, and they bump against his back, sun disc, arms and legs instead of passing through.</p></div>
     <div><b>The camera</b><p>Every angle can circle a full 360° around Kreis: turn on 360° circle, or drag the scene to orbit and tilt by hand. Zoom with the scroll wheel, a pinch, the slider or <kbd>+</kbd> <kbd>−</kbd>. Director cuts between seven shots, each with its own zoom move. Hold the move pad to slide the camera left, right, up, down, forward or back, along each axis separately. Reset view returns to the starting position.</p></div>
     <div><b>Shortcuts</b><p><kbd>Space</kbd> pause, <kbd>1</kbd>–<kbd>6</kbd> cameras, <kbd>C</kbd> 360° circle, arrow keys orbit and tilt, <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> move the camera forward, left, back and right, <kbd>Q</kbd> <kbd>E</kbd> down and up, <kbd>N</kbd> day or dusk, <kbd>Z</kbd> dolly zoom, <kbd>0</kbd> reset zoom.</p></div>
   </section>
@@ -428,7 +428,7 @@ for(const[sx,mir]of[[0.035,false],[-0.035,true]]){const cy=0.092;
 /* hair: a big flame crest of chunky, leaf-shaped locks, gold at the root to pale at the tip */
 const hairMat=rim(new THREE.MeshToonMaterial({color:0xffffff,vertexColors:true,gradientMap:gradTex,side:THREE.DoubleSide}),0.38);
 const HC=[new THREE.Color(0xc4241a),new THREE.Color(0xf07a1a),new THREE.Color(0xffd84a)];
-function lockGeo(p1,p2,p3,w,th,n=30,ring=10){
+function lockGeo(p1,p2,p3,w,th,n=20,ring=10){
   const curve=new THREE.CubicBezierCurve3(new THREE.Vector3(0,-0.012,0.004),p1,p2,p3),pos=[],col=[],idx=[],tts=[];
   const Tn=new THREE.Vector3(),Sd=new THREE.Vector3(),Nn=new THREE.Vector3(),P=new THREE.Vector3(),UP=new THREE.Vector3(0,1,0),cc=new THREE.Color();
   for(let i=0;i<=n;i++){const t=i/n;curve.getPoint(t,P);curve.getTangent(t,Tn);
@@ -439,7 +439,7 @@ function lockGeo(p1,p2,p3,w,th,n=30,ring=10){
       pos.push(P.x+Sd.x*ww*cx+Nn.x*tt*lens,P.y+Sd.y*ww*cx+Nn.y*tt*lens,P.z+Sd.z*ww*cx+Nn.z*tt*lens);col.push(cc.r,cc.g,cc.b);tts.push(t);}}
   for(let i=0;i<n;i++)for(let k=0;k<ring;k++){const a=i*ring+k,b=i*ring+(k+1)%ring,c=a+ring,d=b+ring;idx.push(a,c,b,b,c,d);}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
-  g.setIndex(idx);g.computeVertexNormals();g.userData.base=Float32Array.from(pos);g.userData.tt=Float32Array.from(tts);return g;}
+  g.setIndex(idx);g.computeVertexNormals();g.userData.base=Float32Array.from(pos);g.userData.tt=Float32Array.from(tts);Object.assign(g.userData,{curve,ring,n,w});return g;}
 const hair=grp(head),locks=[];
 {const cap=new THREE.SphereGeometry(1,56,40);const cc=[];const pp=cap.attributes.position;for(let i=0;i<pp.count;i++){const y=pp.getY(i);const c=HC[0].clone().lerp(HC[1],Math.min(1,Math.max(0,(y+0.3)/1.1)));cc.push(c.r,c.g,c.b);}
  cap.setAttribute('color',new THREE.Float32BufferAttribute(cc,3));cap.scale(0.093,0.066,0.1);
@@ -639,15 +639,91 @@ function updateColliders(){
 /* advance all cloth by the frame's simulated time */
 let clothAcc=0;
 function updateCloth(dt,v,t){
-  updateColliders();
+  updateColliders();hairTargets();
   for(const c of CLOTH){if(!c.init)clothInit(c);const tmp_=c.pinPrev;c.pinPrev=c.pinCur;c.pinCur=clothPinTargets(c,tmp_);}
-  if(dt<=0){for(const c of CLOTH){c.g.attributes.position.needsUpdate=true;}return;}
+  if(dt<=0){for(const c of CLOTH){c.g.attributes.position.needsUpdate=true;}hairMesh();return;}
   /* relative air: Kreis runs along +x, so air streams past at -v; a light shifting breeze; turbulence grows with speed */
   const air={x:-v+0.5*Math.sin(t*0.37)+0.3*Math.sin(t*1.1),y:0.15*Math.sin(t*0.71),z:0.45*Math.sin(t*0.23+1)+0.2*Math.sin(t*1.7),
     tur:0.35+0.16*v,f1:5+2.1*v,f2:7.3+2.9*v};
   clothAcc+=Math.min(dt,0.05);let n=Math.floor(clothAcc/CLOTH_H);if(n>CLOTH_MAX){n=CLOTH_MAX;clothAcc=0;}else clothAcc-=n*CLOTH_H;
-  for(let s=0;s<n;s++){const frac=(s+1)/n;for(const c of CLOTH)clothStep(c,CLOTH_H,frac,air,t+s*CLOTH_H);}
+  for(let s=0;s<n;s++){const frac=(s+1)/n;for(const c of CLOTH)clothStep(c,CLOTH_H,frac,air,t+s*CLOTH_H);hairStep(CLOTH_H,air,t+s*CLOTH_H);}
   for(const c of CLOTH){c.g.attributes.position.needsUpdate=true;c.g.computeVertexNormals();}
+  if(FRAME%HAIR_EVERY===0)hairMesh();
+}
+
+/* ---------- hair: every lock is a strand of particles held to its styled shape and pushed by the same air as the cloth ----------
+   Root stiff, tip soft; the lock mesh is reshaped along a smooth spine through the strand, its lighting rotated with it. */
+const HK=8,STRANDS=[],_hv=new THREE.Vector3(),_hn=new THREE.Vector3(),_hq=new THREE.Quaternion(),_hq2=new THREE.Quaternion();
+const HSTIFF=Array.from({length:HK},(_,k)=>{const t=k/(HK-1);return 0.5*(1-Math.pow(t,0.65))+0.022;});
+function makeStrand(L){
+  const g=L.g,m=L.m,geo=m.geometry,U=geo.userData,curve=U.curve,ring=U.ring,nR=U.n+1;
+  g.updateMatrix();const M=g.matrix;
+  const rest=[],tang=[];
+  for(let k=0;k<HK;k++)rest.push(curve.getPoint(k/(HK-1)).applyMatrix4(M));
+  for(let k=0;k<HK;k++){const a=rest[Math.max(0,k-1)],b=rest[Math.min(HK-1,k+1)];tang.push(b.clone().sub(a).normalize());}
+  const base=U.base,nrm=geo.attributes.normal.array,NV=base.length/3;
+  const offs=new Float32Array(NV*3),nrest=new Float32Array(NV*3);
+  for(let j=0;j<nR;j++){const c=curve.getPoint(j/(nR-1)).applyMatrix4(M);
+    for(let k=0;k<ring;k++){const v=j*ring+k;_hv.set(base[v*3],base[v*3+1],base[v*3+2]).applyMatrix4(M);
+      offs[v*3]=_hv.x-c.x;offs[v*3+1]=_hv.y-c.y;offs[v*3+2]=_hv.z-c.z;
+      _hn.set(nrm[v*3],nrm[v*3+1],nrm[v*3+2]).transformDirection(M);nrest[v*3]=_hn.x;nrest[v*3+1]=_hn.y;nrest[v*3+2]=_hn.z;}}
+  g.remove(m);scene.add(m);m.position.set(0,0,0);m.rotation.set(0,0,0);m.scale.set(1,1,1);m.frustumCulled=false;
+  return{L,m,geo,rest,tang,offs,nrest,nR,ring,p:new Float32Array(HK*3),q:new Float32Array(HK*3),tgt:new Float32Array(HK*3),
+    qk:Array.from({length:HK},()=>new THREE.Quaternion()),qr:new THREE.Quaternion(),init:false,
+    mass:L.amp>1?7e-5:1.8e-4,w:U.w||0.05,ph:L.ph};
+}
+for(const L of locks)STRANDS.push(makeStrand(L));
+const HEADC=new THREE.Vector3();
+function hairTargets(){
+  head.updateMatrixWorld(true);const HM=head.matrixWorld;
+  HEADC.set(0,0.1,0);head.localToWorld(HEADC);
+  for(const st of STRANDS){for(let k=0;k<HK;k++){_hv.copy(st.rest[k]).applyMatrix4(HM);st.tgt[k*3]=_hv.x;st.tgt[k*3+1]=_hv.y;st.tgt[k*3+2]=_hv.z;}
+    if(!st.init){st.p.set(st.tgt);st.q.set(st.tgt);st.init=true;}}
+}
+function hairStep(h,air,t){
+  const h2=h*h,R2=0.089*0.089;
+  for(const st of STRANDS){const P=st.p,Q=st.q,T=st.tgt,im=1/st.mass,ka=0.16*st.w*0.04;
+    for(let k=2;k<HK;k++){const i=k*3,j=i-3;
+      let dx=P[i]-P[j],dy=P[i+1]-P[j+1],dz=P[i+2]-P[j+2];const dl=Math.hypot(dx,dy,dz)||1e-9;dx/=dl;dy/=dl;dz/=dl;
+      const vx=(P[i]-Q[i])/h,vy=(P[i+1]-Q[i+1])/h,vz=(P[i+2]-Q[i+2])/h;
+      const tu=air.tur*0.75,ph=st.ph+k*0.6;
+      const wx=air.x+tu*Math.sin(t*air.f1+ph),wy=air.y+tu*0.7*Math.sin(t*air.f2*1.1+ph*1.7),wz=air.z+tu*0.9*Math.sin(t*air.f2+ph*2.3);
+      let rx=wx-vx,ry=wy-vy,rz=wz-vz;const ra=rx*dx+ry*dy+rz*dz;rx-=ra*dx*0.85;ry-=ra*dy*0.85;rz-=ra*dz*0.85;
+      const rv=Math.hypot(rx,ry,rz),f=ka*rv*im;
+      let ux=(P[i]-Q[i])*0.985+rx*f*h2,uy=(P[i+1]-Q[i+1])*0.985+(ry*f-GRAV*0.5)*h2,uz=(P[i+2]-Q[i+2])*0.985+rz*f*h2;
+      const um=Math.hypot(ux,uy,uz),lim=20*h;if(um>lim){const s=lim/um;ux*=s;uy*=s;uz*=s;}
+      Q[i]=P[i];Q[i+1]=P[i+1];Q[i+2]=P[i+2];P[i]+=ux;P[i+1]+=uy;P[i+2]+=uz;}
+    /* roots ride with the head */
+    for(let i=0;i<6;i++){Q[i]=P[i];P[i]=T[i];}
+    /* inextensible segments, then pull toward the styled shape (stiff root, soft tip) */
+    for(let it=0;it<2;it++)for(let k=2;k<HK;k++){const i=k*3,j=i-3;
+      const L0=Math.hypot(T[i]-T[j],T[i+1]-T[j+1],T[i+2]-T[j+2]),dx=P[i]-P[j],dy=P[i+1]-P[j+1],dz=P[i+2]-P[j+2],d=Math.hypot(dx,dy,dz)||1e-9,s=(d-L0)/d;
+      P[i]-=dx*s;P[i+1]-=dy*s;P[i+2]-=dz*s;}
+    for(let k=2;k<HK;k++){const i=k*3,a=HSTIFF[k];P[i]+=(T[i]-P[i])*a;P[i+1]+=(T[i+1]-P[i+1])*a;P[i+2]+=(T[i+2]-P[i+2])*a;}
+    /* keep clear of the scalp */
+    for(let k=2;k<HK;k++){const i=k*3,dx=P[i]-HEADC.x,dy=P[i+1]-HEADC.y,dz=P[i+2]-HEADC.z,d2=dx*dx+dy*dy+dz*dz;
+      if(d2<R2){const d=Math.sqrt(d2)||1e-6,s=0.089/d;P[i]=HEADC.x+dx*s;P[i+1]=HEADC.y+dy*s;P[i+2]=HEADC.z+dz*s;}}
+  }
+}
+const _ta=new THREE.Vector3(),_tb=new THREE.Vector3(),_tr=new THREE.Vector3();
+function hairMesh(){
+  head.getWorldQuaternion(_hq);
+  for(const st of STRANDS){const P=st.p,pos=st.geo.attributes.position.array,nor=st.geo.attributes.normal.array;
+    /* a frame per particle: rotate the rest direction onto the current one, on top of the head's orientation */
+    for(let k=0;k<HK;k++){const a=Math.max(0,k-1)*3,b=Math.min(HK-1,k+1)*3;
+      _ta.set(P[b]-P[a],P[b+1]-P[a+1],P[b+2]-P[a+2]).normalize();_tb.copy(st.tang[k]).applyQuaternion(_hq);
+      st.qk[k].setFromUnitVectors(_tb,_ta).multiply(_hq);}
+    const sc=0.9,nR=st.nR,ring=st.ring,O=st.offs,NR_=st.nrest;
+    for(let j=0;j<nR;j++){const x=j/(nR-1)*(HK-1);let s=Math.floor(x);if(s>HK-2)s=HK-2;const f=x-s;
+      /* smooth spine: Catmull-Rom through the particles */
+      const i0=Math.max(0,s-1)*3,i1=s*3,i2=(s+1)*3,i3=Math.min(HK-1,s+2)*3,f2=f*f,f3=f2*f;
+      const c0=-0.5*f3+f2-0.5*f,c1=1.5*f3-2.5*f2+1,c2=-1.5*f3+2*f2+0.5*f,c3=0.5*f3-0.5*f2;
+      const cx=P[i0]*c0+P[i1]*c1+P[i2]*c2+P[i3]*c3,cy=P[i0+1]*c0+P[i1+1]*c1+P[i2+1]*c2+P[i3+1]*c3,cz=P[i0+2]*c0+P[i1+2]*c1+P[i2+2]*c2+P[i3+2]*c3;
+      st.qr.slerpQuaternions(st.qk[s],st.qk[s+1],f);
+      for(let k=0;k<ring;k++){const v=(j*ring+k)*3;
+        _tr.set(O[v],O[v+1],O[v+2]).applyQuaternion(st.qr);pos[v]=cx+_tr.x*sc;pos[v+1]=cy+_tr.y*sc;pos[v+2]=cz+_tr.z*sc;
+        _tr.set(NR_[v],NR_[v+1],NR_[v+2]).applyQuaternion(st.qr);nor[v]=_tr.x;nor[v+1]=_tr.y;nor[v+2]=_tr.z;}}
+    st.geo.attributes.position.needsUpdate=true;st.geo.attributes.normal.needsUpdate=true;}
 }
 
 /* ---------- dust puffs at foot strikes ---------- */
@@ -886,13 +962,7 @@ function pose(p,sp,dt){
     lag.sl[i]=spring(lag.sl[i],lag.sh[i],6,dt);A.sl.rotation.x=(lag.sl[i]-lag.sh[i])*0.9;
   }
   chestB.scale.set(1+0.004*R*Math.sin(p*2+0.6),1,1+lerp(0.008,lerp(0.014,0.026,SPR),R)*Math.sin(p*2+0.6));
-  for(const l of locks){l.g.rotation.x=l.base-0.06*spN+Math.sin(S.t*l.f*0.5+l.ph)*0.02;
-    const g=l.m.geometry,P=g.attributes.position.array,B=g.userData.base,TT=g.userData.tt,wind=0.16*spN+0.26*SPR,A=0.12*l.amp*(0.35+0.85*spN)*(1+0.8*SPR),Y=0.09*l.amp*(0.4+spN)*(1+0.6*SPR);
-    for(let k=0;k<TT.length;k++){const t=TT[k],t2=t*t;
-      const a=(Math.sin(S.t*l.f-t*3.4+l.ph)*A-wind)*t2,w=Math.sin(S.t*l.f*0.8-t*2.8+l.ph*1.3)*Y*t2;
-      const x=B[k*3],y=B[k*3+1],z=B[k*3+2],ca=Math.cos(a),sa=Math.sin(a),y1=y*ca-z*sa,z1=y*sa+z*ca,cw=Math.cos(w),sw=Math.sin(w);
-      P[k*3]=x*cw+z1*sw;P[k*3+1]=y1;P[k*3+2]=-x*sw+z1*cw;}
-    g.attributes.position.needsUpdate=true;if(FRAME%HAIR_EVERY===0)g.computeVertexNormals();}
+  /* hair is simulated with the cloth (see hair strands) */
   /* expression: blinks, eyes narrow and brows set as he speeds up, mouth opens to breathe */
   face.blinkT-=dt;if(face.blinkT<=0){face.blink=0.16;face.blinkT=2.4+Math.random()*3.2;}
   let bl=1;if(face.blink>0){face.blink-=dt;const u=1-face.blink/0.16;bl=Math.max(0.06,Math.abs(1-2*u));}
