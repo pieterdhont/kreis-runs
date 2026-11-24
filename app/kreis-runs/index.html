@@ -148,7 +148,7 @@ footer{font-size:13px;color:var(--muted);padding-top:0}
   </div>
 
   <section class="notes">
-    <div><b>The runner</b><p>One sculpted body on a 19-bone skeleton, moved by physics across a full range of speeds. From about 0.8 m/s he walks: both feet touch the ground together for a moment and his body rises over each step. Around 1.6 m/s he blends into a jog and then a run. Above 3.2 m/s he moves into a sprint, reaching a full sprint at 10 m/s: up to about 5.4 steps a second, ground contact under a tenth of a second, landings on the ball of the foot with the heel never touching, high heel recovery, big knee drive and a wide, powerful arm swing. Each gait's step rate and ground-contact time come from measured human data scaled to his size. Planted feet never slide: each foot lands on the heel, rolls flat and pushes off from the toes, landing more on the forefoot and pushing off harder the faster he goes. He leans into acceleration and back when braking, each landing sends a small jolt up his body, and his pelvis turns and dips against his shoulders with every stride.</p></div>
+    <div><b>The runner</b><p>One sculpted body on a 19-bone skeleton, moved by physics across a full range of speeds. From about 0.8 m/s he walks: both feet touch the ground together for a moment and his body rises over each step. Around 1.6 m/s he blends into a jog and then a run. Above 3.2 m/s he moves into a sprint, reaching a full sprint at 10 m/s: up to about 5.4 steps a second, ground contact under a tenth of a second, landings on the ball of the foot with the heel never touching, high heel recovery, big knee drive and a wide, powerful arm swing. Each gait's step rate and ground-contact time come from measured human data scaled to his size. Planted feet never slide: each foot lands on the heel, rolls flat and pushes off from the toes, landing more on the forefoot and pushing off harder the faster he goes. He leans into acceleration and back when braking, each landing sends a small jolt up his body, and his pelvis turns and dips against his shoulders with every stride. His torso follows his limbs: the pelvis turns with his thighs and the chest with his arms, in true opposition. He sways over the loaded leg, his spine flexes on each landing and extends through the push-off, his shoulders move forward and back with each arm, and his breathing deepens with effort while his head stays steady.</p></div>
     <div><b>His look</b><p>A Japanese-meets-Bauhaus hero, cel-shaded with ink outlines. He has a flame-coloured crest of hair and a wrap top with a family crest. A black obi with streaming tails and red-lined sleeves with ribbons complete the outfit, along with pleated hakama and a cape split into two tails. He blinks, and his eyes narrow, brows set and mouth opens as he runs faster.</p></div>
     <div><b>The camera</b><p>Every angle can circle a full 360° around Kreis: turn on 360° circle, or drag the scene to orbit and tilt by hand. Zoom with the scroll wheel, a pinch, the slider or <kbd>+</kbd> <kbd>−</kbd>. Director cuts between seven shots, each with its own zoom move. Hold the move pad to slide the camera left, right, up, down, forward or back, along each axis separately. Reset view returns to the starting position.</p></div>
     <div><b>Shortcuts</b><p><kbd>Space</kbd> pause, <kbd>1</kbd>–<kbd>6</kbd> cameras, <kbd>C</kbd> 360° circle, arrow keys orbit and tilt, <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> move the camera forward, left, back and right, <kbd>Q</kbd> <kbd>E</kbd> down and up, <kbd>N</kbd> day or dusk, <kbd>Z</kbd> dolly zoom, <kbd>0</kbd> reset zoom.</p></div>
@@ -697,6 +697,7 @@ function legIK(L_,target){
   const yA=thighDir.clone().negate(),xA=new THREE.Vector3().crossVectors(perp,dir).normalize(),zA=new THREE.Vector3().crossVectors(xA,yA);
   L_.th.quaternion.setFromRotationMatrix(_m.makeBasis(xA,yA,zA));
   L_.kn.rotation.set(Math.PI-Math.acos(Math.min(1,Math.max(-1,(L1*L1+L2*L2-d*d)/(2*L1*L2)))),0,0);
+  return Math.atan2(thighDir.z,-thighDir.y);   /* thigh angle forward of vertical */
 }
 const lag={sh:[0,0],el:[0,0],sl:[0,0],shZ:[0,0]};
 const spring=(cur,tgt,k,dt)=>cur+(tgt-cur)*(dt>0?1-Math.exp(-dt*k):1);
@@ -704,6 +705,7 @@ const face={blinkT:2.2,blink:0};
 const fs=[{p:new THREE.Vector3()},{p:new THREE.Vector3()}],prevF=[0,0];
 /* momentum: lean into acceleration, back when braking; a damped jolt runs up the body at each landing */
 const mom={prevV:null,acc:0,jx:0,jv:0};
+const tflex=[0,0];
 function pose(p,sp,dt){
   const G=gaitParams(sp),ph=p/(Math.PI*2),spN=Math.min(1,sp/1.6),R=G.run,spc=G.spc;SPR=G.spr;
   if(dt>0){if(mom.prevV!==null)mom.acc=spring(mom.acc,(G.v-mom.prevV)/dt,6,dt);mom.prevV=G.v;
@@ -715,20 +717,28 @@ function pose(p,sp,dt){
   const hj=lerp(hjW,hjR,R)-0.012*mom.jx;
   hips.position.y=hj+0.03+GY;   /* the path surface sits 4 cm above the ground plane */
   /* pelvis turns with the swinging leg and drops on the unloaded side; chest and shoulders counter-rotate */
-  const tw=Math.cos(2*Math.PI*ph),Ap=lerp(0.06,lerp(0.06+0.035*spc,0.15,SPR),R),At=lerp(0.07,lerp(0.1+0.05*spc,0.24,SPR),R);
-  const ld=f=>f<G.duty?Math.sin(Math.PI*f/G.duty):0,f0=((ph%1)+1)%1,f1=((ph+0.5)%1+1)%1;
-  hips.rotation.y=-Ap*tw;hips.rotation.z=lerp(0.025,0.045,R)*(ld(f0)-ld(f1));hips.rotation.x=0.03*spc*R;
+  /* the torso is driven by the limbs: the pelvis turns with the thighs, the chest turns with the arms */
+  const ld=f=>f<G.duty?Math.sin(Math.PI*f/G.duty):0,f0=((ph%1)+1)%1,f1=((ph+0.5)%1+1)%1,stL=ld(f0)-ld(f1);
+  const pelvYaw=-lerp(0.3,lerp(0.4,0.5,SPR),R)*(tflex[0]-tflex[1]);
+  const chestYaw=lerp(0.22,lerp(0.32,0.4,SPR),R)*(lag.sh[0]-lag.sh[1]);
+  hips.rotation.y=pelvYaw;hips.rotation.z=lerp(0.03,lerp(0.045,0.03,SPR),R)*stL;hips.rotation.x=0.03*spc*R;
+  /* spine: flexes to absorb at mid-stance, extends through the push-off; leans with speed and acceleration */
+  const tcF=Math.min(0.95,G.tc/G.Ts),q=st<tcF?Math.sin(Math.PI*st/tcF):0,ext=Math.exp(-(((st-tcF)/0.07)**2));
   const lean=lerp(0.03,lerp(0.05+0.1*spc,0.17,SPR),R)+Math.max(-0.12,Math.min(0.18,mom.acc*0.05));
-  {const tx=lean+0.02*R*Math.sin(4*Math.PI*ph)+0.06*mom.jx,ty=At*tw,tz=-0.03*(ld(f0)-ld(f1));
-   waistB.rotation.set(tx*0.42,ty*0.38-Ap*tw*0.3,tz*0.5);chestB.rotation.set(tx*0.58,ty*0.62,tz*0.5);}
-  {const hx=-lean*0.8-0.02*Math.sin(4*Math.PI*ph)-0.05*mom.jx,hy=-(At-Ap)*tw*0.9,hz=-0.015*(ld(f0)-ld(f1));neckB.rotation.set(hx*0.45,hy*0.45,hz*0.5);head.rotation.set(hx*0.55,hy*0.55,hz*0.5);}
+  {const tx=lean+R*(lerp(0.035,0.05,SPR)*q-lerp(0.03,0.05,SPR)*ext)+0.06*mom.jx;
+   /* sway over the loaded leg, while staying upright above the tilting pelvis */
+   const tz=-lerp(0.05,lerp(0.03,0.015,SPR),R)*stL-hips.rotation.z*0.8,cy=chestYaw-pelvYaw;
+   waistB.rotation.set(tx*0.42,cy*0.4,tz*0.5);chestB.rotation.set(tx*0.58,cy*0.6,tz*0.5);
+   /* head cancels the body's turn and roll so the gaze stays on the path */
+   const hx=-lean*0.8-0.03*R*(q-ext)-0.05*mom.jx,hy=-chestYaw*0.92,hz=-(hips.rotation.z+tz)*0.85;
+   neckB.rotation.set(hx*0.45,hy*0.45,hz*0.5);head.rotation.set(hx*0.55,hy*0.55,hz*0.5);}
   kreis.position.y=0;kreis.updateMatrixWorld(true);
   const zA0=G.zA0;
   for(let i=0;i<2;i++){
     const f=((ph+i*0.5)%1+1)%1,L_=legs[i],A=arms[i],side=i?-1:1,F=footState(G,f,side,zA0,fs[i]);
     /* body space -> hips space, then solve the leg and set the foot's ground pitch */
     _w.copy(F.p);_w.y+=GY;body.localToWorld(_w);hips.worldToLocal(_w);
-    legIK(L_,_w);
+    tflex[i]=spring(tflex[i],legIK(L_,_w),30,dt);
     L_.th.updateMatrixWorld(true);
     L_.kn.getWorldQuaternion(_q2);body.getWorldQuaternion(_bq);
     _q.setFromAxisAngle(_X,F.pitch);_bq.multiply(_q);
@@ -741,6 +751,8 @@ function pose(p,sp,dt){
     const shR=-cyc(HIPK,f+0.04)*0.82*(0.5+0.5*spc)+8,shS=-cyc(HIPK,f+0.03)*0.82*2.15+12,shW=-(14+10*spc)*Math.cos(2*Math.PI*f)+3;
     const shF=lerp(shW,lerp(shR,shS,SPR),R);
     lag.sh[i]=spring(lag.sh[i],-shF*DEG,lerp(9,lerp(16+4*spc,30,SPR),R),dt);A.sh.rotation.x=lag.sh[i];
+    {const sg_=A.sh.parent;if(!sg_.userData.p0)sg_.userData.p0=sg_.position.clone();const a_=Math.max(-1.2,Math.min(1.2,-lag.sh[i]));
+     sg_.position.z=sg_.userData.p0.z+a_*lerp(0.006,lerp(0.012,0.018,SPR),R);sg_.position.y=sg_.userData.p0.y+Math.abs(a_)*lerp(0.002,0.006,R);}
     lag.shZ[i]=spring(lag.shZ[i],side*(lerp(0.03,0.04,R)+0.05*R*Math.max(0,shF)/40),10,dt);A.sh.rotation.z=lag.shZ[i];
     A.sh.rotation.y=side*lerp(0.05,0.22,R)*Math.max(0,shF)/40;
     const elR=70+0.55*Math.max(0,shF)+8*spc-6*Math.max(0,-shF)/30,elS=84+0.25*Math.max(0,shF)-24*Math.max(0,-shF)/50,elW=18+0.5*Math.max(0,shF);
@@ -753,7 +765,7 @@ function pose(p,sp,dt){
       sgp.setXYZ(k,x+Math.sin(S.t*7-s*5+i)*0.01*s,y*Math.cos(a),y*Math.sin(a));}
     sgp.needsUpdate=true;A.sg.computeVertexNormals();
   }
-  chestB.scale.set(1,1,1+0.012*Math.sin(p*2+0.6));
+  chestB.scale.set(1+0.004*R*Math.sin(p*2+0.6),1,1+lerp(0.008,lerp(0.014,0.026,SPR),R)*Math.sin(p*2+0.6));
   /* cape: blown back with speed, edges cupping, travelling ripples, split tails flicking */
   const a0=0.2+0.6*spN+0.55*SPR;
   for(let i=0;i<cp.count;i++){
