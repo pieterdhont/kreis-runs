@@ -133,6 +133,11 @@ footer{font-size:13px;color:var(--muted);padding-top:0}
     <div class="grp"><label for="speed"><span style="font-size:14px;color:var(--muted)">Speed</span></label>
       <input id="speed" type="range" min="0.8" max="10" step="0.1" value="1.9"><output id="speedOut" for="speed">1.0×</output>
     </div>
+    <div class="grp"><span>Quality</span>
+      <div class="seg" role="group" aria-label="Quality">
+        <button type="button" data-q="auto">Auto</button><button type="button" data-q="high">High</button><button type="button" data-q="balanced">Balanced</button><button type="button" data-q="fast">Fast</button>
+      </div><span id="qOut" style="font-size:14px;color:var(--muted);white-space:nowrap"></span>
+    </div>
   </div>
   <div class="controls">
     <div class="grp"><span>Cinema</span>
@@ -512,7 +517,7 @@ for(const sx of[1,-1]){const S_=sx>0?'L':'R';
 /* ---------- cloth: Verlet particles, distance constraints, gravity, aerodynamic drag, body collisions ----------
    The cape, the obi tails and the sleeve ribbons are simulated in world space. Air moves past Kreis at his running
    speed (plus gusts and turbulence in his wake) and pushes on every triangle of fabric. */
-const CLOTH=[],CLOTH_H=1/300;
+const CLOTH=[];let CLOTH_H=1/200,CLOTH_MAX=6;
 function makeCloth(o){
   const {NC,NR,restFn,pinParent,mass,colorFn,split}=o,N=NC*NR;
   const c={NC,NR,N,pinParent,p:new Float32Array(N*3),q:new Float32Array(N*3),f:new Float32Array(N*3),rest:[],pins:[],con:[],tri:[],
@@ -528,6 +533,8 @@ function makeCloth(o){
     if(k+2<NC&&!cut(r,k,k+2))addC(id(r,k),id(r,k+2),o.bend??0.25);
     if(r+2<NR)addC(id(r,k),id(r+2,k),o.bend??0.25);
   }
+  const nc=c.con.length;c.ca=new Int32Array(nc);c.cb=new Int32Array(nc);c.cl=new Float32Array(nc);c.ck=new Float32Array(nc);
+  c.con.forEach(([a,b,L,k],i)=>{c.ca[i]=a*3;c.cb[i]=b*3;c.cl[i]=L;c.ck[i]=k;});c.baseIters=c.iters;
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(c.p,3));g.setIndex(c.tri);
   const col=new Float32Array(N*3),Q=new THREE.Color();
   for(let r=0;r<NR;r++)for(let k=0;k<NC;k++){colorFn(k/(NC-1)*2-1,r/(NR-1),Q);col.set([Q.r,Q.g,Q.b],id(r,k)*3);}
@@ -578,36 +585,42 @@ function clothStep(c,h,frac,air,t){
     P[i3]=A_.x+(B_.x-A_.x)*frac;P[i3+1]=A_.y+(B_.y-A_.y)*frac;P[i3+2]=A_.z+(B_.z-A_.z)*frac;}};
   pin();
   const isPin=c.isPin||(c.isPin=(()=>{const s=new Uint8Array(N);c.pins.forEach(i=>s[i]=1);return s})());
+  const CA=c.ca,CB=c.cb,CL_=c.cl,CK=c.ck,NCn=CA.length;
   for(let it=0;it<c.iters;it++){
-    for(const[a0,b0,L,k]of c.con){const a=a0*3,b=b0*3,wa=isPin[a0]?0:1,wb=isPin[b0]?0:1,ws=wa+wb;if(!ws)continue;
-      const dx=P[b]-P[a],dy=P[b+1]-P[a+1],dz=P[b+2]-P[a+2],d=Math.hypot(dx,dy,dz)||1e-9,s=(d-L)/d*k/ws;
+    for(let j=0;j<NCn;j++){const a=CA[j],b=CB[j],wa=isPin[a/3]?0:1,wb=isPin[b/3]?0:1,ws=wa+wb;if(!ws)continue;
+      const dx=P[b]-P[a],dy=P[b+1]-P[a+1],dz=P[b+2]-P[a+2],d=Math.sqrt(dx*dx+dy*dy+dz*dz)||1e-9,s=(d-CL_[j])/d*CK[j]/ws;
       P[a]+=dx*s*wa;P[a+1]+=dy*s*wa;P[a+2]+=dz*s*wa;P[b]-=dx*s*wb;P[b+1]-=dy*s*wb;P[b+2]-=dz*s*wb;}
-    /* collisions: body spheres, limb capsules, the sun disc, the path */
-    for(let i=0;i<N;i++){if(isPin[i])continue;const i3=i*3;let x=P[i3],y=P[i3+1],z=P[i3+2];
+    pin();
+  }
+  /* collisions once per substep: body spheres, limb capsules, the sun disc, the path (broad-phase skip when far) */
+  const BS=COL.bound;
+  for(let i=0;i<N;i++){if(isPin[i])continue;const i3=i*3;let x=P[i3],y=P[i3+1],z=P[i3+2];
+    if(y<GY+0.006)y=GY+0.006;
+    const bx=x-BS.x,by=y-BS.y,bz=z-BS.z;
+    if(bx*bx+by*by+bz*bz<BS.r2){
       for(const sp of COL.sph){const dx=x-sp.c.x,dy=y-sp.c.y,dz=z-sp.c.z,d2=dx*dx+dy*dy+dz*dz;if(d2<sp.r*sp.r){const d=Math.sqrt(d2)||1e-6,s=sp.r/d;x=sp.c.x+dx*s;y=sp.c.y+dy*s;z=sp.c.z+dz*s;}}
-      for(const cp_ of COL.cap){const ax=cp_.a.x,ay=cp_.a.y,az=cp_.a.z,bx=cp_.b.x-ax,by=cp_.b.y-ay,bz=cp_.b.z-az,bb=bx*bx+by*by+bz*bz||1e-9;
-        let u=((x-ax)*bx+(y-ay)*by+(z-az)*bz)/bb;u=u<0?0:u>1?1:u;const qx=ax+bx*u,qy=ay+by*u,qz=az+bz*u,dx=x-qx,dy=y-qy,dz=z-qz,d2=dx*dx+dy*dy+dz*dz;
+      for(const cp_ of COL.cap){const ax=cp_.a.x,ay=cp_.a.y,az=cp_.a.z,bx2=cp_.b.x-ax,by2=cp_.b.y-ay,bz2=cp_.b.z-az,bb=bx2*bx2+by2*by2+bz2*bz2||1e-9;
+        let u=((x-ax)*bx2+(y-ay)*by2+(z-az)*bz2)/bb;u=u<0?0:u>1?1:u;const qx=ax+bx2*u,qy=ay+by2*u,qz=az+bz2*u,dx=x-qx,dy=y-qy,dz=z-qz,d2=dx*dx+dy*dy+dz*dz;
         if(d2<cp_.r*cp_.r){const d=Math.sqrt(d2)||1e-6,s=cp_.r/d;x=qx+dx*s;y=qy+dy*s;z=qz+dz*s;}}
       const D=COL.disc;if(D){const rx=x-D.c.x,ry=y-D.c.y,rz=z-D.c.z,dn=rx*D.n.x+ry*D.n.y+rz*D.n.z;
         if(dn<0.014&&dn>-0.13){const px=rx-dn*D.n.x,py=ry-dn*D.n.y,pz=rz-dn*D.n.z;if(px*px+py*py+pz*pz<D.r*D.r){const s=0.014-dn;x+=D.n.x*s;y+=D.n.y*s;z+=D.n.z*s;}}}
-      if(y<GY+0.006)y=GY+0.006;
-      const cx_=x-P[i3],cy_=y-P[i3+1],cz_=z-P[i3+2];if(cx_||cy_||cz_){Qp[i3]+=cx_*0.85;Qp[i3+1]+=cy_*0.85;Qp[i3+2]+=cz_*0.85;}
-      P[i3]=x;P[i3+1]=y;P[i3+2]=z;}
-    pin();
-  }
+    }
+    const cx_=x-P[i3],cy_=y-P[i3+1],cz_=z-P[i3+2];if(cx_||cy_||cz_){Qp[i3]+=cx_*0.85;Qp[i3+1]+=cy_*0.85;Qp[i3+2]+=cz_*0.85;}
+    P[i3]=x;P[i3+1]=y;P[i3+2]=z;}
+  pin();
 }
 /* the cape: attached across the back of the shoulders behind the sun disc, widening to a split hem */
 const capeTopZ=[];for(let k=0;k<14;k++)capeTopZ.push(onTorso((k/13*2-1)*0.1,0.305,0,true).z);
-const cape=makeCloth({NC:14,NR:26,mass:0.2,iters:8,bend:0.3,ka:1.0,kt:0.08,pinParent:torso,split:{row:14,col:6},
+const cape=makeCloth({NC:12,NR:22,mass:0.2,iters:6,bend:0.3,ka:1.0,kt:0.08,pinParent:torso,split:{row:12,col:5},
   restFn:(u,s)=>{const x=u*(0.1+0.19*Math.pow(s,0.8)),bz=(capeTopZ[Math.round((u+1)*6.5)]??onTorso(u*0.1,0.305,0,true).z);
     return new THREE.Vector3(x,0.31-s*0.76+0.2*Math.pow(s,3)*Math.pow(1-Math.abs(u),1.4),bz-0.036-0.03*s);},
   colorFn:(u,s,Q)=>Q.set(0xe8342a).lerp(new THREE.Color(0x9e1218),smo(0.1,1,s))});
 /* obi tails: two narrow black ribbons from the knot, red at the tips */
-for(const sx of[1,-1])makeCloth({NC:3,NR:18,mass:0.025,iters:6,bend:0.3,pinParent:hips,ka:0.8,
+for(const sx of[1,-1])makeCloth({NC:3,NR:15,mass:0.025,iters:4,bend:0.3,pinParent:hips,ka:0.8,
   restFn:(u,s)=>new THREE.Vector3(sx*0.02+u*0.021*(1-0.25*s)+sx*0.03*s,0.046-s*0.3,-0.104-0.012*s),
   colorFn:(u,s,Q)=>Q.set(s>0.86?C.red:C.black)});
 /* sleeve ribbons: short red streamers from each cuff */
-for(const A of arms)makeCloth({NC:2,NR:11,mass:0.01,iters:5,bend:0.2,pinParent:A.sl,ka:0.8,
+for(const A of arms)makeCloth({NC:2,NR:9,mass:0.01,iters:3,bend:0.2,pinParent:A.sl,ka:0.8,
   restFn:(u,s)=>new THREE.Vector3(u*0.015*(1-0.6*s),-0.15-s*0.16,-0.046-0.004*s),
   colorFn:(u,s,Q)=>Q.set(C.red)});
 /* refresh colliders from the skeleton */
@@ -619,6 +632,7 @@ function updateColliders(){
     if(o2)o2.getWorldPosition(c.b);else{c.b.set(0,-off2,0);o1.localToWorld(c.b);}ci++;};
   for(const L_ of legs){Cp(L_.th,L_.kn,0.078);Cp(L_.kn,L_.an,0.07);}
   for(const A of arms){Cp(A.sh,A.el,0.056);Cp(A.el,A.wr,0.036);}
+  const BS=COL.bound||(COL.bound={x:0,y:0,z:0,r2:0});hips.getWorldPosition(_a);BS.x=_a.x;BS.y=_a.y+0.05;BS.z=_a.z;BS.r2=0.85*0.85;
   const D=COL.disc||(COL.disc={c:new THREE.Vector3(),n:new THREE.Vector3(),r:0.155});
   D.c.set(0,0.24,DISC_Z);torso.localToWorld(D.c);D.n.set(0,0,-1).transformDirection(torso.matrixWorld);
 }
@@ -631,7 +645,7 @@ function updateCloth(dt,v,t){
   /* relative air: Kreis runs along +x, so air streams past at -v; a light shifting breeze; turbulence grows with speed */
   const air={x:-v+0.5*Math.sin(t*0.37)+0.3*Math.sin(t*1.1),y:0.15*Math.sin(t*0.71),z:0.45*Math.sin(t*0.23+1)+0.2*Math.sin(t*1.7),
     tur:0.35+0.16*v,f1:5+2.1*v,f2:7.3+2.9*v};
-  clothAcc+=Math.min(dt,0.05);const n=Math.min(12,Math.floor(clothAcc/CLOTH_H));clothAcc-=n*CLOTH_H;
+  clothAcc+=Math.min(dt,0.05);let n=Math.floor(clothAcc/CLOTH_H);if(n>CLOTH_MAX){n=CLOTH_MAX;clothAcc=0;}else clothAcc-=n*CLOTH_H;
   for(let s=0;s<n;s++){const frac=(s+1)/n;for(const c of CLOTH)clothStep(c,CLOTH_H,frac,air,t+s*CLOTH_H);}
   for(const c of CLOTH){c.g.attributes.position.needsUpdate=true;c.g.computeVertexNormals();}
 }
@@ -878,7 +892,7 @@ function pose(p,sp,dt){
       const a=(Math.sin(S.t*l.f-t*3.4+l.ph)*A-wind)*t2,w=Math.sin(S.t*l.f*0.8-t*2.8+l.ph*1.3)*Y*t2;
       const x=B[k*3],y=B[k*3+1],z=B[k*3+2],ca=Math.cos(a),sa=Math.sin(a),y1=y*ca-z*sa,z1=y*sa+z*ca,cw=Math.cos(w),sw=Math.sin(w);
       P[k*3]=x*cw+z1*sw;P[k*3+1]=y1;P[k*3+2]=-x*sw+z1*cw;}
-    g.attributes.position.needsUpdate=true;g.computeVertexNormals();}
+    g.attributes.position.needsUpdate=true;if(FRAME%HAIR_EVERY===0)g.computeVertexNormals();}
   /* expression: blinks, eyes narrow and brows set as he speeds up, mouth opens to breathe */
   face.blinkT-=dt;if(face.blinkT<=0){face.blink=0.16;face.blinkT=2.4+Math.random()*3.2;}
   let bl=1;if(face.blink>0){face.blink-=dt;const u=1-face.blink/0.16;bl=Math.max(0.06,Math.abs(1-2*u));}
@@ -995,10 +1009,29 @@ const resize=()=>{const w=stage.clientWidth,h=stage.clientHeight;renderer.setSiz
 const ro=new ResizeObserver(resize);ro.observe(stage);resize();
 syncUI();
 rig(0,10);camPos.copy(wantPos);camLook.copy(wantLook);fov=wantFov;
+/* ---------- quality: pixel ratio, shadow detail, cloth substeps and hair refresh; Auto picks the level from the frame rate ---------- */
+const QUAL={high:{pr:1.75,sh:2048,h:1/240,max:8,it:1,hair:1},balanced:{pr:1.4,sh:1536,h:1/200,max:6,it:1,hair:1},fast:{pr:1.0,sh:1024,h:1/150,max:4,it:0.7,hair:2}};
+const QORDER=['fast','balanced','high'];
+var FRAME=0,HAIR_EVERY=1;let qMode=store.get('kreis-q','auto');if(!QUAL[qMode]&&qMode!=='auto')qMode='auto';
+let qLevel=qMode==='auto'?'balanced':qMode;const qa={ema:1/60,work:0.005,t:0};
+const syncQ=()=>{document.querySelectorAll('[data-q]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.q===qMode)));
+  $('qOut').textContent=qMode==='auto'?'using '+qLevel:'';};
+function applyQuality(l){qLevel=l;const q=QUAL[l];renderer.setPixelRatio(Math.min(devicePixelRatio,q.pr));
+  if(sun.shadow.mapSize.x!==q.sh){sun.shadow.mapSize.set(q.sh,q.sh);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}}
+  CLOTH_H=q.h;CLOTH_MAX=q.max;for(const c of CLOTH)c.iters=Math.max(2,Math.round(c.baseIters*q.it));HAIR_EVERY=q.hair;resize();syncQ();}
+function autoQuality(raw,work){
+  if(qMode!=='auto'||raw>0.1)return;qa.ema=qa.ema*0.94+raw*0.06;qa.work=qa.work*0.9+work*0.1;qa.t+=raw;
+  const i=QORDER.indexOf(qLevel);
+  if(qa.ema>1/47&&qa.t>1.5&&i>0){applyQuality(QORDER[i-1]);qa.t=0;}
+  else if(qa.ema<1/57&&qa.work<0.007&&qa.t>6&&i<QORDER.length-1){applyQuality(QORDER[i+1]);qa.t=0;}
+}
+document.querySelectorAll('[data-q]').forEach(b=>b.addEventListener('click',()=>{qMode=b.dataset.q;store.set('kreis-q',qMode);qa.t=0;
+  applyQuality(qMode==='auto'?qLevel:qMode);}));
+applyQuality(qLevel);
 status.remove();
 const clock=new THREE.Clock();
 renderer.setAnimationLoop(()=>{
-  const real=Math.min(clock.getDelta(),0.05),dt=S.paused?0:real;
+  const w0=performance.now(),raw=clock.getDelta(),real=Math.min(raw,0.05),dt=S.paused?0:real;FRAME++;
   S.spS=(S.spS??S.speed)+(S.speed-(S.spS??S.speed))*(1-Math.exp(-real*2.2));const sp=S.spS;
   S.t+=dt;S.rt+=real;
   const GP=gaitParams(sp),v=GP.v;S.gaitV=v;
@@ -1018,6 +1051,7 @@ renderer.setAnimationLoop(()=>{
   if(wantDof&&composer){head.getWorldPosition(hw);const focus=Math.max(0.15,camera.position.distanceTo(hw));
     bokeh.uniforms.focus.value=focus;bokeh.uniforms.aperture.value=Math.min(0.004,Math.max(0.00018,0.0028/focus));composer.render(real);}
   else renderer.render(scene,camera);
+  autoQuality(raw,(performance.now()-w0)/1000);
 });
 }catch(e){status.textContent='The 3D scene could not start in this browser.';console.error(e)}
 }
