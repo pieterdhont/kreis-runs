@@ -51,4 +51,9 @@ python tools/build_figure.py                # -> app/kreis-the-wanderer/kreis_th
 
 The character, landscape and code are original. The app uses [three.js](https://threejs.org) r160 (MIT licence) from a CDN, and the Jost typeface from Google Fonts.
 
-No licence has been chosen for this repository yet, so all rights are reserved by default. Add a `LICENSE` file if you want others to reuse it.
+## Licence
+
+This project uses two licences:
+
+- **Code: [MIT](LICENSE).** Everything that runs (the app, gait, cloth, hair and camera systems, and the tools) is free to reuse, including commercially, as long as the copyright notice is kept.
+- **Character and assets: [CC BY-NC 4.0](LICENSE-ASSETS.md).** The Kreis character design and the model files (`kreis_body.js`, the Wanderer GLB and `model.js`) may be shared and adapted with credit, but not used commercially.

@@ -20,3 +20,4 @@ Each entry is one commit. Kreis Runs was developed in quick iterations. Some ear
 | 14 | Faster cloth, adaptive quality | About 8× cheaper cloth step, capped substeps, Auto/High/Balanced/Fast quality |
 | 15 | Physics hair strands | Every lock a strand held to its style, pushed by the same air, about half the previous hair cost |
 | 16 | Documentation | README, usage guide, architecture notes, improvement ideas, render-check tool |
+| 17 | Licences | MIT for the code, CC BY-NC 4.0 for the Kreis character and model files |
