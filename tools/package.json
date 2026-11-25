@@ -1,0 +1,7 @@
+{
+  "name": "kreis-runs-tools",
+  "private": true,
+  "description": "Headless render checks for Kreis Runs",
+  "scripts": { "check": "node render-check.js ../app/kreis-runs out/check" },
+  "devDependencies": { "playwright": "^1.48.0", "three": "0.160.0" }
+}
